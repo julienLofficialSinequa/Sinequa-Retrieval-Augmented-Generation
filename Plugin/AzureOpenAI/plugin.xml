@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Revision>2</Revision>
+	<Description></Description>
+	<ProgrammingLanguage>csany</ProgrammingLanguage>
+	<Platform>any</Platform>
+	<Files>
+		<e>
+			<Name>AzureOpenAI.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>AzureOpenAIParameters.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>AzureOpenAITokenizer.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>AzureOpenAIModel.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>AzureOpenAIQuota.cs</Name>
+			<Comment></Comment>
+		</e>
+	</Files>
+	<IsDebug>true</IsDebug>
+	<ExternalDllPath></ExternalDllPath>
+	<Reference>TiktokenSharp.dll</Reference>
+	<Reference>Azure.AI.OpenAI.dll</Reference>
+</Sinequa>
