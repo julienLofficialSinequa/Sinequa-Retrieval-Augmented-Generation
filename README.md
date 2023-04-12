@@ -2,7 +2,7 @@
 
 Sinequa brings ChatGPT in your organization on your data. This integration relies on the **Azure OpenAI Service** and GPT Models (GPT3 & GPT4)
 
-![ChatGPT facet](images/gif-ChatGPT-demo.gif)
+![ChatGPT facet](Images/gif-ChatGPT-demo.gif)
 
 
 * [Installation steps](#installation_steps)
@@ -130,7 +130,7 @@ This component can be integrated in a facet card, like so:
 </sq-facet-card>
 ```
 
-![ChatGPT facet](images/chatgpt-facet.png)
+![ChatGPT facet](Images/chatgpt-facet.png)
 
 <br/>
 
@@ -146,7 +146,7 @@ Most of these options can be tuned via the `sq-chat-settings` component, which d
 
 (When modified, these options need to be persisted separately an binded to the `sq-chat` component's input)
 
-![Chat settings form](images/chat-settings.png)
+![Chat settings form](Images/chat-settings.png)
 
 <br/>
 
@@ -156,7 +156,7 @@ The `sq-chat` component has other options that can give it a different purpose o
 
 - `searchMode` when set to `true`, this enables "auto-search". This lets users trigger a Sinequa search query that constructs "attachments" (snippets of text from documents) that they can then inject in the conversation with ChatGPT. Auto-search is triggered directly from the Chat's input, by pressing the `Tab` key, or by click the Sinequa logo displayed to the right of the search bar.
 
-  ![Auto search](images/auto-search.png)
+  ![Auto search](Images/auto-search.png)
 
 - `enableChat` when set to `false` disables the chat, so in effect in displays one single message from ChatGPT generated from one (generally hidden) prompt.
 - `chat` allows to open a predefined conversation in the chat component. These conversations may be `SavedChat` (conversations manually saved by the user), or programmatically-constructed conversation starters (for example _"take these documents and build a summary"_).
@@ -185,7 +185,7 @@ and in the template:
 
 ## <a name="sba_integration_vanilla"></a> Vanilla Search integration
 
-![Vanilla ChatGPT integration](images/vanilla-chatgpt.png)
+![Vanilla ChatGPT integration](Images/vanilla-chatgpt.png)
 
 The `sq-chat` component is integrated in Vanilla Search at different levels. Note that these integrations are just **samples** to demonstrate the range of possibilities, rather than a definite and refined application design.
 
@@ -203,7 +203,7 @@ The `sq-chat` component is integrated in Vanilla Search at different levels. Not
 
 The ChatGPT application uses the same components as in Vanilla Search, but it puts more emphasis on the chat, and particularly on the "Auto-Search" functionality.
 
-![ChatGPT app](images/chatgpt-app.png)
+![ChatGPT app](Images/chatgpt-app.png)
 
 1- The Settings view displays `sq-chat-settings` and lets users customize prompts and model parameters
 
