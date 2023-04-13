@@ -33,7 +33,7 @@ To deploy the Sinequa ChatGPT in your environment you need the following prerequ
 - Sinequa V11.9.1 >= r120
 - Neuralized documents (indexed with Neural Search)
 - AzureOpenAI plugin installed and compiled
-
+- Access to the [Azure OpenAI ChatGPT preview](https://azure.microsoft.com/en-us/blog/chatgpt-is-now-available-in-azure-openai-service/)
 
 <br/>
 
