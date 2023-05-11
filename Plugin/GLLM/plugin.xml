@@ -6,23 +6,27 @@
 	<Platform>any</Platform>
 	<Files>
 		<e>
-			<Name>AzureOpenAI.cs</Name>
+			<Name>GLLM.cs</Name>
 			<Comment></Comment>
 		</e>
 		<e>
-			<Name>AzureOpenAIParameters.cs</Name>
+			<Name>GLLMParameters.cs</Name>
 			<Comment></Comment>
 		</e>
 		<e>
-			<Name>AzureOpenAITokenizer.cs</Name>
+			<Name>GLLMTokenizer.cs</Name>
 			<Comment></Comment>
 		</e>
 		<e>
-			<Name>AzureOpenAIModel.cs</Name>
+			<Name>GLLMModel.cs</Name>
 			<Comment></Comment>
 		</e>
 		<e>
-			<Name>AzureOpenAIQuota.cs</Name>
+			<Name>GLLMQuota.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>AzureOpenAIModels.cs</Name>
 			<Comment></Comment>
 		</e>
 	</Files>

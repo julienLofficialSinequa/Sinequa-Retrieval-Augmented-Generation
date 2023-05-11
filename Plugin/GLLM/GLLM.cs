@@ -1,29 +1,20 @@
-﻿///////////////////////////////////////////////////////////
-// Plugin OpenAI : file AzureOpenAI.cs
-//
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Sinequa.Common;
 using Sinequa.Configuration;
 using Sinequa.Plugins;
 using Sinequa.Search.JsonMethods;
 using Newtonsoft.Json;
-using System.Linq;
-using Azure.AI.OpenAI;
 
 namespace Sinequa.Plugin
 {
 
-    public class AzureOpenAI : JsonMethodPlugin
+    public class GLLM : JsonMethodPlugin
     {
-        public const string ENV_VAR_PROMPT_PROTECTION = "%%azure-openai-prompt-protection%%"; 
-        public string promptProtection;
-
-        public const string ENV_VAR_USER_QUOTA = "%%azure-openai-user-quota-tokens%%";
+        public const string ENV_VAR_USER_QUOTA = "%%gllm-user-quota-tokens%%";
         public int quotaPeriodTokens;
 
-        public const string ENV_VAR_REST_HOURS = "%%azure-openai-user-quota-reset-hours%%";
+        public const string ENV_VAR_REST_HOURS = "%%gllm-user-quota-reset-hours%%";
         public int quotaResetHours;
 
         public override JsonMethodAuthLevel GetRequiredAuthLevel()
@@ -63,7 +54,7 @@ namespace Sinequa.Plugin
 
         private void Chat(InputParametersChat inputParamsChat)
         {
-            AzureOpenAIQuota quota = new AzureOpenAIQuota(quotaPeriodTokens, quotaResetHours, this.Method.Session.UserSettings);
+            GLLMQuota quota = new GLLMQuota(quotaPeriodTokens, quotaResetHours, this.Method.Session.UserSettings);
 
             if (quota.enabled && !quota.Allowed())
             {
@@ -71,19 +62,19 @@ namespace Sinequa.Plugin
                 return;
             }
 
-            AzureOpenAIModel model;
+            GLLMModel model;
             string errorMessage;
 
             switch (inputParamsChat.model.name)
             {
-                case ModelType.GPT35Turbo:
-                    model = new AzureOpenAIGPT35Turbo(inputParamsChat.model);
+                case ModelName.GPT35Turbo:
+                    model = new AzureOpenAIGPT35Turbo(inputParamsChat.model, this.Method.Session.User);
                     break;
-                case ModelType.GPT4_8K:
-                    model = new AzureOpenAIGPT4_8K(inputParamsChat.model);
+                case ModelName.GPT4_8K:
+                    model = new AzureOpenAIGPT4_8K(inputParamsChat.model, this.Method.Session.User);
                     break;
-                case ModelType.GPT4_32K:
-                    model = new AzureOpenAIGPT4_32K(inputParamsChat.model);
+                case ModelName.GPT4_32K:
+                    model = new AzureOpenAIGPT4_32K(inputParamsChat.model, this.Method.Session.User);
                     break;
                 default:
                     this.SetError("invalid model");
@@ -103,12 +94,9 @@ namespace Sinequa.Plugin
 
             model.messages = inputParamsChat.messagesHistory;
 
-            if (inputParamsChat.promptProtection)
-            {
-                model.AddMessageBeforeLast(ChatRole.User, promptProtection);
-            }
+            if (inputParamsChat.promptProtection) model.AddPromptProtection();
 
-            ChatCompletions res = model.QueryAPI(this.Method.Session.User, out int HTTPCode , out errorMessage);
+            GLLMResponse res = model.QueryAPI(out int HTTPCode , out errorMessage);
             if (res == null)
             {
                 this.SetError(500, $"[{HTTPCode}] {errorMessage}");
@@ -117,31 +105,29 @@ namespace Sinequa.Plugin
 
             if (inputParamsChat.debug)
             {
-                this.Method.JsonResponse.Set($"post_{inputParamsChat.model.name}", Json.Deserialize(JsonConvert.SerializeObject(model.postBody)));
-                this.Method.JsonResponse.Set($"response_{inputParamsChat.model.name}", Json.Deserialize(JsonConvert.SerializeObject(res)));
+                this.Method.JsonResponse.Set($"post_{inputParamsChat.model.name}", model.postBody);
+                this.Method.JsonResponse.Set($"response_{inputParamsChat.model.name}", res.JsonResponse());
             }
 
-            ChatChoice choice = res.Choices.First();
+            SBAChatMessage chatMsg = res.GetMessage();
 
-            model.AddMessage(choice.Message.Role, choice.Message.Content, true);
+            model.AddMessage(chatMsg);
 
-            this.JsonResponse.Set("messagesHistory", Json.Deserialize(JsonConvert.SerializeObject(model.messages)));
-
-            int modelTokenGenerationConsumption = res.Usage.TotalTokens;
+            this.JsonResponse.Set("messagesHistory", model.JsonMessages);
 
             //no quota for admins
             if (quota.enabled && !this.Method.Session.IsAdmin)
             {
-                quota.Update(modelTokenGenerationConsumption);
+                quota.Update(res.UsageTotalTokens);
             }
 
-            this.Method.JsonResponse.Set("tokens", model.TokensStats(modelTokenGenerationConsumption, quota));
+            this.Method.JsonResponse.Set("tokens", model.TokensStats(res.UsageTotalTokens, quota));
 
         }
 
         private void TokensCount(InputParametersTokensCount inputParamsTokensCount)
         {
-            List<int> count = GPTTokenizer.Count(inputParamsTokensCount.model, inputParamsTokensCount.text);
+            List<int> count = GLLMTokenizer.Count(inputParamsTokensCount.model, inputParamsTokensCount.text);
             this.Method.JsonResponse.Set("tokens", count);
         }
 
@@ -149,13 +135,6 @@ namespace Sinequa.Plugin
         {
             errorMessage = "";
             string s;
-
-            promptProtection = CC.Current.EnvVars.Resolve(ENV_VAR_PROMPT_PROTECTION);
-            if (Str.EQ(promptProtection, ENV_VAR_PROMPT_PROTECTION))
-            {
-                errorMessage = $"Missing environment variable [{ENV_VAR_PROMPT_PROTECTION}]";
-                return false;
-            }
 
             s = CC.Current.EnvVars.Resolve(ENV_VAR_USER_QUOTA);
             if (Str.EQ(s, ENV_VAR_USER_QUOTA))
@@ -186,19 +165,19 @@ namespace Sinequa.Plugin
 
         private void ListModels()
         {
-            AzureOpenAIModel model;
+            GLLMModel model;
             string errorMessage;
 
-            List<ModelType> lModels = new List<ModelType>();
+            List<GLLMModel> lModels = new List<GLLMModel>();
 
-            model = new AzureOpenAIGPT35Turbo(new ModelParameters() { name = ModelType.GPT35Turbo });
-            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model.type);
+            model = new AzureOpenAIGPT35Turbo(new ModelParameters() { name = ModelName.GPT35Turbo }, null);
+            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model);
 
-            model = new AzureOpenAIGPT4_8K(new ModelParameters() { name = ModelType.GPT4_8K });
-            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model.type);
+            model = new AzureOpenAIGPT4_8K(new ModelParameters() { name = ModelName.GPT4_8K }, null);
+            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model);
 
-            model = new AzureOpenAIGPT4_32K(new ModelParameters() { name = ModelType.GPT4_32K });
-            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model.type);
+            model = new AzureOpenAIGPT4_32K(new ModelParameters() { name = ModelName.GPT4_32K }, null);
+            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model);
 
             this.JsonResponse.Set("models", Json.Deserialize(JsonConvert.SerializeObject(lModels)));
         }

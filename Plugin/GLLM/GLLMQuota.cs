@@ -1,8 +1,4 @@
-﻿///////////////////////////////////////////////////////////
-// Plugin OpenAI : file AzureOpenAIQuota.cs
-//
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Sinequa.Common;
@@ -18,8 +14,8 @@ using Newtonsoft.Json;
 namespace Sinequa.Plugin
 {
 	
-	public class AzureOpenAIQuota
-	{
+	public class GLLMQuota
+    {
 		[JsonIgnore]
         public const string QUOTA_TAG_NAME = "AzureOpenAIQuota";
         [JsonIgnore]
@@ -53,12 +49,12 @@ namespace Sinequa.Plugin
             get => nextReset.ToUniversalTime();
         }
 
-        public AzureOpenAIQuota(int periodTokens, int resetHours, US userSettings)
+        public GLLMQuota(int periodTokens, int resetHours, US userSettings)
         {
             this.enabled = periodTokens != -1;
 
             this.periodTokens = periodTokens;
-			this.resetHours = resetHours;
+			this.resetHours = resetHours <= 1 ? resetHours = 1 : resetHours;
 			this.userSettings = userSettings;
 
 			userSettings.Load();

@@ -1,9 +1,10 @@
 # Sinequa ChatGPT Integration
 
-Sinequa brings ChatGPT to your organization using your data. This integration relies on the **Azure OpenAI Service** and GPT Models (GPT3 & GPT4)
+Sinequa brings ChatGPT to your organization using your data. This integration relies on the **Azure OpenAI Service** and GPT Models (GPT3.5 & GPT4)
 
-![ChatGPT facet](Images/gif-ChatGPT-demo.gif)
-
+<p align="center">
+<img width="460" height="300" src="Images/gif-ChatGPT-demo.gif">
+</p>
 
 * [Installation steps](#installation_steps)
     * [Plugin](#installation_steps_plugin)
@@ -17,6 +18,9 @@ Sinequa brings ChatGPT to your organization using your data. This integration re
         * [General options](#sba_integration_chat_options)
         * [Advanced options](#sba_integration_chat_adv_options)
     * [Vanilla Search integration](#sba_integration_vanilla)
+		* [Assistant](#sba_integration_vanilla_assistant)
+		* [Other integrations](#sba_integration_vanilla_other)
+		* [Prompt customization](#sba_integration_vanilla_prompts)
     * [ChatGPT application](#sba_integration_chat_app)
 * [Endpoint](#endpoint)
     * [List Models](#endpoint_list_models)
@@ -30,19 +34,20 @@ Sinequa brings ChatGPT to your organization using your data. This integration re
 # <a name="installation_steps"></a> Installation steps
 
 To deploy the Sinequa ChatGPT in your environment you need the following prerequisites:
-- Sinequa V11.9.1 >= r120
+- Sinequa V11.10.0
 - Neuralized documents (indexed with Neural Search)
-- AzureOpenAI plugin installed and compiled
+- GLLM plugin installed and compiled
+- .Net Core WebApp - Kestrel 
 - Access to the [Azure OpenAI ChatGPT preview](https://azure.microsoft.com/en-us/blog/chatgpt-is-now-available-in-azure-openai-service/)
 
 <br/>
 
 ## <a name="installation_steps_plugin"></a> Plugin
 
-1. Copy the `OpenAI` plugin folder to your `˂sinequa_data˃/configuration/plugins` folder
-1. Copy the dlls from `libs` to your Sinequa bin folder
-    - Depending on the runtime of your WebApp, dlls must be copied to `<sinequa>/bin` (Kestrel - .Net Core) or `<sinequa>\website\bin` (IIS - .Net Framework)
-    - This plugin uses `Azure.AI.OpenAI` - `V1.0.0 beta 5`, which requires `Azure.Core.dll` - `V1.30.0`. Since the `Azure.Core.dll` already exists in the `bin` folder in `V1.28.0`, you must override it.
+1. Copy the `GLLM` plugin folder to your `˂sinequa_data˃/configuration/plugins` folder
+1. Copy the dlls from `libs` to the `<sinequa>/bin` folder.
+    - `Azure.AI.OpenAI.dll` from `Libs\azure.ai.openai\1.0.0-beta.5\netstandard2.0`
+    - `TiktokenSharp.dll` from `Libs\tiktokensharp\1.0.4\netstandard2.1`
 1. Build the plugin
 
 <br/>
@@ -75,20 +80,20 @@ To learn more, read the following  Microsoft documentation: [Create a resource a
 
 Name | Type | Comment |
 --- | --- | --- |
-`azure-openai-prompt-protection` | string | A user prompt that gets injected by the backend  before the last user prompt. This is typically used to restrict user interactions with the model. 
+`azure-openai-gpt-35-prompt-protection` | string | A user prompt that gets injected by the backend before the last user prompt. This is typically used to restrict user interactions with the model. This environment variable is optional.
 
 <br/>
 
 ### <a name="installation_steps_plugin_env_vars_quota"></a> User quota
 
-To prevent abuse or misuse of the ChatGPT custom endpoint, you can set a maximum quota per user, see `azure-openai-user-quota-tokens` . The quota can be reset every N hours, see `azure-openai-user-quota-reset-hours`
+To prevent abuse or misuse of the ChatGPT custom endpoint, you can set a maximum quota per user, see `gllm-user-quota-tokens` . The quota can be reset every N hours, see `gllm-user-quota-reset-hours`
 
-Tokens are stored in XML user settings.
+Quota is stored in XML user settings.
 
 Name | Type | Comment |
 --- | --- | --- |
-`azure-openai-user-quota-tokens` | int | Input and output tokens quota per user. Quota does not apply to Administrators. Use magic value -1 to disable quota for all users.
-`azure-openai-user-quota-reset-hours` | int | Time duration before the user quota resets. Value is expressed in hours. 
+`gllm-user-quota-tokens` | int | Input and output tokens quota per user. Quota does not apply to Administrators. Use magic value `-1` to disable quota for all users.
+`gllm-user-quota-reset-hours` | int | Time duration before the user quota resets. Value is expressed in hours. Minimum value is `1`.
 
 <br/>
 
@@ -104,11 +109,11 @@ To learn more, read the [ChatGPT SBA integration](#sba_integration) section of t
 
 # <a name="sba_integration"></a> ChatGPT SBA integration
 
-ChatGPT is integrated into the SBA framework at a different level:
+ChatGPT is integrated in the SBA framework at different level:
 
 - In the components library, the **machine-learning module** includes a new component `sq-chat` and a service `ChatService`.
-- In the classical Vanilla Search application, the chat component is integrated at a different level to enhance the search experience.
-- A new starter application named "chatgpt" is centered on the chat component. It provides a new type of experience in which chatting is the main purpose and content retrieval is performed behind the scenes.
+- In the classical Vanilla-Search application, the chat component is integrated at different level to enhance the search experience. In particular, a new "Assistant" component uses ChatGPT to generate answers and improve search results.
+- A new starter application named "chatgpt" is centered on the chat component. It provides a new type of experience in which chatting is the main purpose and content retrieval is performed behind the scene.
 
 <br/>
 
@@ -120,9 +125,9 @@ The simplest possible usage of the chat component is as follows:
 <sq-chat [chat]="null"></sq-chat>
 ```
 
-This displays a chat component with all default inputs (the `null` input is needed if no other input is provided to the component).
+This displays a chat component, with all default inputs (the `null` input is needed if no other input is provided to the component).
 
-This component can be integrated in a facet card like so:
+This component can be integrated in a facet card, like so:
 
 ```html
 <sq-facet-card [title]="'ChatGPT'" [icon]="'fas fa-comments primary-icon'">
@@ -144,7 +149,7 @@ Most of these options can be tuned via the `sq-chat-settings` component, which d
 <sq-chat-settings [config]="chatConfig"></sq-chat-settings>
 ```
 
-(When modified, these options need to be persisted separately and bound to the `sq-chat` component's input.)
+(When modified, these options need to be persisted separately an binded to the `sq-chat` component's input)
 
 ![Chat settings form](Images/chat-settings.png)
 
@@ -152,14 +157,14 @@ Most of these options can be tuned via the `sq-chat-settings` component, which d
 
 ### <a name="sba_integration_chat_adv_options"></a> Advanced options
 
-The `sq-chat` component has other options that can give it a different purpose or provide a different user experience:
+The `sq-chat` component has other options that can give it a different purpose or user experience:
 
-- when `searchMode` is set to `true`, it enables "auto-search". This lets users trigger a Sinequa search query that constructs "attachments" (snippets of text from documents) that they can then inject into the conversation with ChatGPT. Auto-search is triggered directly from the Chat's input by pressing the `Tab` key or by clicking the Sinequa logo displayed to the right of the search bar.
+- `searchMode` when set to `true`, this enables "auto-search". This lets users trigger a Sinequa search query that constructs "attachments" (snippets of text from documents) that they can then inject in the conversation with ChatGPT. Auto-search is triggered directly from the Chat's input, by pressing the `Tab` key, or by click the Sinequa logo displayed to the right of the search bar.
 
   ![Auto search](Images/auto-search.png)
 
-- when `enableChat` is set to `false`, it disables the chat. In effect, it displays one single message from ChatGPT generated from one (generally hidden) prompt.
-- `chat` allows a predefined conversation to open in the chat component. These conversations may be `SavedChat` (conversations manually saved by the user) or programmatically-constructed conversation starters (for example, _"take these documents and build a summary"_).
+- `enableChat` when set to `false` disables the chat, so in effect in displays one single message from ChatGPT generated from one (generally hidden) prompt.
+- `chat` allows to open a predefined conversation in the chat component. These conversations may be `SavedChat` (conversations manually saved by the user), or programmatically-constructed conversation starters (for example _"take these documents and build a summary"_).
 
 An example of programmatically constructed chat can be found below:
 
@@ -187,21 +192,76 @@ and in the template:
 
 ![Vanilla ChatGPT integration](Images/vanilla-chatgpt.png)
 
-The `sq-chat` component is integrated in Vanilla Search at different levels. Note that these integrations are just **samples** to demonstrate the range of possibilities rather than a definitive and refined application design.
-
-- On the home page, we display a message generated by ChatGPT to greet users.
-- In the search form, a button translates the content in the search bar to English (whatever the original language).
-- On the results page,
-  - a standalone chat component is displayed. It can be used directly by users. Users can "attach" documents from the result list to the conversation to provide context to ChatGPT.
-  - an "Answer with ChatGPT" button is displayed in the "Neural search answers" card. It automatically injects the top passages into the ChatGPT conversation and asks it for a summary.
-  - a new "Summary" tab is available in the "mini-preview". This summary is another instance of the ChatGPT component.
-- On the preview page, a new tab displays the chat. An initial summary is generated from the document's passages, and the user can continue the conversation and/or bring new content into the conversation using "auto-search" (see above).
+The `sq-chat` component is integrated in Vanilla Search at different levels. Note that these integrations are just **samples** to demonstrate the range of possibilities, rather than a definite and refined application design.
 
 <br/>
 
-## <a name="sba_integration_chat_app"></a> ChatGPT application
+### <a name="sba_integration_vanilla_assistant"></a> Assistant
 
-The ChatGPT application uses the same components as it does in Vanilla Search, but it puts more emphasis on the chat and particularly on the "Auto-Search" functionality.
+The most prominent feature is the "Assistant" displayed on the search page. This assistant component displays the chat inside a facet card, manages the chat's settings and performs certain actions in response to user search queries.
+
+The assistant has different "modes" that can be activated in the settings:
+
+![Assistant modes](Images/assistant-modes.png)
+
+There are currently four available modes:
+
+- Manual: The assistant does nothing automatically. The user must manually select documents from the result list to inject them into the chat conversation
+
+![Manual select mode](Images/manual-select.png)
+
+
+- Auto-Search: The assistant does nothing automatically, but it lets users trigger search queries directly from the chat's text input (with the `Tab` key or with a click on the Sinequa Logo). The assistant automatically runs the search, selects relevant passages and injects them in the conversation.
+
+![Auto search mode](Images/auto-search.png)
+
+- Auto-Answer: The assistant responds to the user's search queries: when results are retrieved, the assistant automatically selects relevant passages, injects them in the conversation and prompts ChatGPT for a short answer and a summary.
+
+![Auto answer mode](Images/auto-answer.png)
+
+- Meeseeks mode: The assistant eagerly tries to enhance the user's search queries by trying to correct/expand the fulltext search and by adding filters (as if it were clicking in facets). It then runs the modified search query in the background, and uses the results to provide an answer to the question, similarly as in Auto-search mode. Note that Meeseeks mode makes use of GPT4 specifically (as GPT3.5 is not reliable enough for the task).
+
+![Auto answer mode](Images/meeseeks.png)
+
+<br/>
+
+### <a name="sba_integration_vanilla_other"></a> Other integrations
+
+- On the home page, we display a message generated by ChatGPT to greet users.
+- In the search form a button allows to translate the content of the search bar to English (whatever the original language).
+- On the results page, a new tab "Summary" is available in the "mini-preview". This summary is another instance of the ChatGPT component
+- On the preview page, a new tab displays the chat. An initial summary is generated from the document's passages, and the user can continue the conversation and/or bring new content into the conversation, using "auto-search" (see above).
+
+<br/>
+
+### <a name="sba_integration_vanilla_prompts"></a> Prompt customization
+
+It is possible to override the chat prompts used in these sample integrations in 2 ways:
+
+- At user level, by customizing the prompts directly in the assistant's settings
+- Or globally, by adding them as new properties in the "customization" tab of the application configuration in the Sinequa administration.
+
+The customizable prompts are:
+
+- `translatePrompt`
+- `greetingPrompt`
+- `previewPrompt` (summary displayed in the preview)
+- `answerPrompt` (for the assistant's "auto-answer" mode)
+- `searchPrompt` (for the assistant's "meeseeks" mode - search enhancement)
+- `answer2Prompt` (for the assistant's "meeseeks" mode - answer generation)
+
+It is also possible to customize the default [general options](#sba_integration_chat_options) of the chat with the `chatConfig` property (these options can still be customized at user level via the `sq-chat-settings` component).
+
+Prompts may include placeholders refering to the properties of various objects (the current search query, the user's identity, etc.). For example, the "greeting prompt" of the home page reads as follows:
+
+```
+User {principal.fullName} is on the home page of the Sinequa search engine, please write a nice short 1-sentence greeting message in {locale.name}.
+```
+<br />
+
+## <a name="sba_integration_chat_app"></a>ChatGPT application
+
+The ChatGPT application uses the same components as in Vanilla Search, but it puts more emphasis on the chat, and particularly on the "Auto-Search" functionality.
 
 ![ChatGPT app](Images/chatgpt-app.png)
 
@@ -209,42 +269,20 @@ The ChatGPT application uses the same components as it does in Vanilla Search, b
 
 2- The top Sinequa button lets users toggle the search view On and Off
 
-3- The "Documents" / "Snippets" button lets users toggle between a document-centric view and a snippet centric view (Snippets are retrieved via Neural Search)
+3- The "Documents" / "Snippets" button lets users toggle between a document-centric view and a snippet centric view (Snippet being retrieved via Neural Search)
 
-4- Clicking on the document opens the document's preview (and it is also possible to add attachments to the chat that way)
+4- Clicking on the document opens the document's preview (it is also possible to add attachment to the chat that way)
 
-5- The bottom Sinequa button lets users trigger "auto search", which triggers a search query with the content of the chat's user input. The search can be refined further using the search interface on the right side.
-
-<br/>
-
-## <a name="sba_integration_prompt"></a> Prompt configuration
-
-It is possible to override the chat prompts used in these sample integrations by adding them as new properties in the "customization" tab of the application configuration in the Sinequa administration.
-
-The customizable prompts are:
-
-- `translatePrompt`
-- `greetingPrompt`
-- `previewSummaryPrompt` (summary displayed in the "mini preview")
-- `previewPrompt` (summary displayed in the "full preview")
-- `answerPrompt` (for the "Answer with ChatGPT" button)
-
-It is also possible to customize the default [general options](#sba_integration_chat_options) of the chat with the `chatConfig` property (these options can still be customized at user level via the `sq-chat-settings` component).
-
-Prompts may include placeholders referring to the properties of various objects (the current search query, the user's identity, etc.). For example, the "greeting prompt" of the home page reads as follows:
-
-```
-User {principal.fullName} is on the home page of the Sinequa search engine, please write a nice short 1-sentence greeting message in {locale.display}.
-```
+5- The bottom Sinequa buttons lets users trigger "auto search", which triggers a search query with the content of the chat's user input. The search can be refined further using the search interface on the right side.
 
 <br/>
 <br/>
 
 # <a name="endpoint"></a> Endpoint
 
-There is a unique endpoint: `AzureOpenAI`.
+There is a unique endpoint: `GLLM`.
 
-You can call the endpoint using the following URI: `<host>/api/v1/dev.plugin?plugin=AzureOpenAI`.
+You can call the endpoint using the following URI: `<host>/api/v1/dev.plugin?plugin=GLLM`.
 
 The endpoint only accepts `POST` requests.
 
@@ -273,8 +311,38 @@ Output sample:
 ```json
 {
     "models": [
-        "GPT35Turbo",
-        "GPT4-8K"
+        {
+            "name": "GPT35Turbo",
+            "displayName": "Azure OpenAI - GPT3.5 Turbo",
+            "size": 4097,
+            "provider": "OpenAI",
+            "penaltyMin": 0.0,
+            "penaltyMax": 1.0,
+            "bestOfMin": 1,
+            "bestOfMax": 10,
+            "temperatureMin": 0.0,
+            "temperatureMax": 2.0,
+            "generateTokensMin": 1,
+            "generateTokensMax": 2000,
+            "topPMin": 0.0,
+            "topPMax": 1.0
+        },
+        {
+            "name": "GPT4-8K",
+            "displayName": "Azure OpenAI - GPT4 - 8K",
+            "size": 8192,
+            "provider": "OpenAI",
+            "penaltyMin": 0.0,
+            "penaltyMax": 1.0,
+            "bestOfMin": 1,
+            "bestOfMax": 10,
+            "temperatureMin": 0.0,
+            "temperatureMax": 2.0,
+            "generateTokensMin": 1,
+            "generateTokensMax": 2000,
+            "topPMin": 0.0,
+            "topPMax": 1.0
+        }
     ],
     "methodresult": "ok"
 }

@@ -1,8 +1,4 @@
-﻿///////////////////////////////////////////////////////////
-// Plugin OpenAI : file AzureOpenAIParameters.cs
-//
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
@@ -48,7 +44,7 @@ namespace Sinequa.Plugin
     public class InputParametersTokensCount : InputParameters
     {
         [JsonProperty(Required = Required.Always)]
-        public ModelType model { get; set; }
+        public ModelName model { get; set; }
 
         [JsonProperty(Required = Required.Always)]
         public List<string> text { get; set; }
@@ -58,19 +54,22 @@ namespace Sinequa.Plugin
     public class ModelParameters
     {
         [JsonProperty(Required = Required.Always)]
-        public ModelType name { get; set; }
+        public ModelName name { get; set; }
 
+        ///////////////////////////////////////////////////////////////////////////
+        //OpenAI ChatGPT
         public double temperature { get; set; } = 0.7;
-
         public int generateTokens { get; set; } = 800;
+        public double topP { get; set; } = 0.8;
+        ///////////////////////////////////////////////////////////////////////////
 
+
+        ///////////////////////////////////////////////////////////////////////////
+        //OpenAI ChatGPT
         public double frequencyPenalty { get; set; } = 0;
-
         public double presencePenalty { get; set; } = 0;
-
-        public double topP { get; set; } = 0.95;
-
         public int bestOf { get; set; } = 1;
+        ///////////////////////////////////////////////////////////////////////////
 
     }
 
