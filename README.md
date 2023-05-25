@@ -37,18 +37,28 @@ To deploy the Sinequa ChatGPT in your environment you need the following prerequ
 - Sinequa V11.10.0
 - Neuralized documents (indexed with Neural Search)
 - GLLM plugin installed and compiled
-- .Net Core WebApp - Kestrel 
 - Access to the [Azure OpenAI ChatGPT preview](https://azure.microsoft.com/en-us/blog/chatgpt-is-now-available-in-azure-openai-service/)
 
 <br/>
 
 ## <a name="installation_steps_plugin"></a> Plugin
 
+NOTE: the plugin support both Kestrel and IIS WebApp. Depending on the WebApp type, you must copy different dlls and modify the plugin Programming Language.
+
 1. Copy the `GLLM` plugin folder to your `˂sinequa_data˃/configuration/plugins` folder
-1. Copy the dlls from `libs` to the `<sinequa>/bin` folder.
-    - `Azure.AI.OpenAI.dll` from `Libs\azure.ai.openai\1.0.0-beta.5\netstandard2.0`
-    - `TiktokenSharp.dll` from `Libs\tiktokensharp\1.0.4\netstandard2.1`
-1. Build the plugin
+1. Assembly references. Depending on the WebApp type you must to copy the following dlls:
+    - Kestrel (.Net Core runtime), copy the following dlls from `libs` to the `<sinequa>/bin` folder.
+        - `Azure.AI.OpenAI.dll` from `Libs\azure.ai.openai\1.0.0-beta.5\netstandard2.0`
+        - `TiktokenSharp.dll` from `Libs\tiktokensharp\1.0.5\netstandard2.1`
+    - IIS (.Net Framework runtime), copy the following dlls from `libs` to the `<sinequa>/website\bin` 
+        - `Azure.AI.OpenAI.dll` from `Libs\azure.ai.openai\1.0.0-beta.5\netstandard2.0`
+        - `TiktokenSharp.dll` from `Libs\tiktokensharp\1.0.5\netstandard2.0`
+        - `IndexRange.dll` from `Libs\indexrange\1.0.2\netstandard2.0`
+1. Build the plugin. Depending on the WebApp type you must adapt the `Programming Language` in the plugin 
+    - Kestrel (.Net Core runtime), select `C# .NET 6.0` or higher
+    - IIS (.Net Framework runtime), select `C# .NET Framework`
+    - If you want to support both, select `C# .NET Framework & .NET 6.0` or higher. In this situation, dlls must have been copied in both `<sinequa>/bin` and `<sinequa>/website\bin` (see step #2)
+
 
 <br/>
 
