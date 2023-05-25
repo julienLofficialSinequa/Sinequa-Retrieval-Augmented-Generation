@@ -37,6 +37,7 @@ To deploy the Sinequa ChatGPT in your environment you need the following prerequ
 - Sinequa V11.10.0
 - Neuralized documents (indexed with Neural Search)
 - GLLM plugin installed and compiled
+- .Net Core WebApp - Kestrel 
 - Access to the [Azure OpenAI ChatGPT preview](https://azure.microsoft.com/en-us/blog/chatgpt-is-now-available-in-azure-openai-service/)
 
 <br/>
@@ -44,7 +45,7 @@ To deploy the Sinequa ChatGPT in your environment you need the following prerequ
 ## <a name="installation_steps_plugin"></a> Plugin
 
 1. Copy the `GLLM` plugin folder to your `˂sinequa_data˃/configuration/plugins` folder
-1. Copy the dlls from `libs` to the `<sinequa>/bin` folder for Kestrel WebApp or to the `<sinequa>/website/bin` folder for IIS WebApp.
+1. Copy the dlls from `libs` to the `<sinequa>/bin` folder.
     - `Azure.AI.OpenAI.dll` from `Libs\azure.ai.openai\1.0.0-beta.5\netstandard2.0`
     - `TiktokenSharp.dll` from `Libs\tiktokensharp\1.0.4\netstandard2.1`
 1. Build the plugin
