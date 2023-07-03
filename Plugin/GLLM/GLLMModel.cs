@@ -40,7 +40,7 @@ namespace Sinequa.Plugin
         AzureOpenAI_GPT4_32K,
         [EnumMember(Value = "Chat-Bison-001")]
         GoogleVertex_Chat_Bison_001,
-        [EnumMember(Value = "Command-xlarge-nightly")]
+        [EnumMember(Value = "command-xlarge-beta")]
         Cohere_Command_XL_Beta
     }
 
