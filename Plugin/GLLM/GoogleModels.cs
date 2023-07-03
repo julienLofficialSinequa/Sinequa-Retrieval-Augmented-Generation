@@ -90,6 +90,7 @@ namespace Sinequa.Plugin
             OAuthJson = CC.Current.EnvVars.Resolve(envVarOAuthJson);
             if (Str.EQ(OAuthJson, envVarOAuthJson)) errorMessage = $"Missing environment variable [{envVarOAuthJson}]";
             promptProtection = CC.Current.EnvVars.Resolve(envVarPromptProtection);
+
             if (Str.EQ(promptProtection, envVarPromptProtection)) promptProtection = null;
 
             return string.IsNullOrEmpty(errorMessage);
@@ -130,9 +131,7 @@ namespace Sinequa.Plugin
 
         private string GetBearerToken()
         {
-            string jsonKeyFilePath = @"C:\_sinequa_cert\google\consultants-169215-55dcb28be0df.json";
-
-            using (var stream = new FileStream(jsonKeyFilePath, FileMode.Open, FileAccess.Read))
+            using (var stream = new FileStream(OAuthJson, FileMode.Open, FileAccess.Read))
             {
                 return GoogleCredential
                     .FromStream(stream)
