@@ -1,16 +1,41 @@
-# Sinequa ChatGPT Integration
+# Sinequa Retrieval Augmented Generation
 
-Sinequa brings ChatGPT to your organization using your data. This integration relies on the **Azure OpenAI Service** and GPT Models (GPT3.5 & GPT4)
+Sinequa brings **Retrieval Augmented Generation** to your organization on **your data**. Search, analyze and chat with your enterprise data.
+
+This integration is designed to be **model agnostic**: any **generative large language model** (Azure OpenAI GPT, Google PaLM, Cohere Command...) can be couple with the Sinequa platform. 
+
+These pre-trained foundation models are usually trained offline, making the model agnostic to any data. However, they are trained on very general public domain data, making them less effective for enterprise specific tasks.
+
+By using the Sinequa Retrieval Augmented Generation (RAG) to retrieve data from outside a foundation model you can augment your prompts by adding the relevant retrieved data in context.
+
+The data used to augment your prompts is retrieved by Sinequa Neural Search (snippets & documents) to ensure that responses are based on the latest available information and can be traced back to the documents they originate from. 
+
+Thanks to Sinequa complete library of pre-built features, quickly and securely connect your siloed content (200+ connectors) and make information in any format (300+ formats) discoverable from a single search entry point. Sinequa preserves and enforces information access controls from source systems. This means end-users only see the information they are entitled to see.
+
+<br/><br/>
+Sample of integration with Azure OpenAI GPT model:
+<br/><br/>
 
 <p align="center">
 <img width="460" height="300" src="Images/gif-ChatGPT-demo.gif">
 </p>
 
+**Update**
+
+June 30th 2023:
+- New [providers and models](#providers_and_models): *Google PaLM2 Chat* & *Cohere Command*
+- Support of *streaming* for Azure OpenAI GPT models. See [Chat](#endpoint_chat)
+- New actions: [Answer](#endpoint_answer), [Context](#endpoint_context) and [Quota](#endpoint_quota)
+
+<br/><br/>
+
+* [Providers and models](#providers_and_models)
 * [Installation steps](#installation_steps)
     * [Plugin](#installation_steps_plugin)
     * [Environment variables](#installation_steps_plugin_env_vars)
-        * [Azure Cognitive Service - Azure OpenAI](#installation_steps_plugin_env_vars_azure)
-        * [Prompts](#installation_steps_plugin_env_vars_prompts)
+        * [Azure Cognitive Service - Azure OpenAI GPT](#installation_steps_plugin_env_vars_azure)
+        * [Google Vertex AI - Text Chat](#installation_steps_plugin_env_vars_google)
+        * [Cohere - Command Chat](#installation_steps_plugin_env_vars_cohere)
         * [User quota](#installation_steps_plugin_env_vars_quota)
     * [SBA](#installation_steps_sba)
 * [ChatGPT SBA integration](#sba_integration)
@@ -26,18 +51,36 @@ Sinequa brings ChatGPT to your organization using your data. This integration re
     * [List Models](#endpoint_list_models)
     * [Token Count](#endpoint_token_count)
     * [Chat](#endpoint_chat)
+    * [Answer](#endpoint_answer)
+    * [Context](#endpoint_context)
+    * [Quota](#endpoint_quota)
 * [Azure OpenAI data, privacy and security policy](#azure_openai_policy)
 
 <br/>
 <br/>
 
+# <a name="providers_and_models"></a> Providers and models
+
+Below is a list of providers and models supported in by the Sinequa RAG implementation. 
+In addition to the models listed below, you can implement ANY generative large language model using the GLLM plugin framework.  
+
+Provider | Model | Max Tokens | Pricing | Data Privacy
+--- | --- | --- | --- | --- |
+[Microsoft Azure OpenAI](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service) | [GPT 3.5 Turbo](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-3-models-1) | 4,096 | [Azure OpenAI Service pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/?cdn=disable) | [Data, privacy, and security for Azure OpenAI Service](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy?context=%2Fazure%2Fcognitive-services%2Fopenai%2Fcontext%2Fcontext)
+[Microsoft Azure OpenAI](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service) | [GPT 4](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-4-models) | 8,192 | [Azure OpenAI Service pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/?cdn=disable) | [Data, privacy, and security for Azure OpenAI Service](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy?context=%2Fazure%2Fcognitive-services%2Fopenai%2Fcontext%2Fcontext)
+[Microsoft Azure OpenAI](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service) | [GPT 4-32k](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-4-models) | 32,768 | [Azure OpenAI Service pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/?cdn=disable) | [Data, privacy, and security for Azure OpenAI Service](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy?context=%2Fazure%2Fcognitive-services%2Fopenai%2Fcontext%2Fcontext)
+[Google](https://cloud.google.com/ai/generative-ai) | [PaLM2 chat-bison-001](https://cloud.google.com/vertex-ai/docs/generative-ai/chat/chat-prompts) | 4,096 | [Vertex AI pricing](https://cloud.google.com/vertex-ai/pricing) | [Cloud Data Processing](https://cloud.google.com/terms/data-processing-addendum)
+[Cohere](https://cohere.com/) | [command-xlarge-beta](https://cohere.com/generate) | 4,096 | [Pricing](https://cohere.com/pricing) | [Security](https://cohere.com/security)
+
+
+
 # <a name="installation_steps"></a> Installation steps
 
-To deploy the Sinequa ChatGPT in your environment you need the following prerequisites:
+To deploy the Sinequa RAG in your environment you need the following prerequisites:
 - Sinequa V11.10.0
 - Neuralized documents (indexed with Neural Search)
 - GLLM plugin installed and compiled
-- Access to the [Azure OpenAI ChatGPT preview](https://azure.microsoft.com/en-us/blog/chatgpt-is-now-available-in-azure-openai-service/)
+- Have access to a foundation model (Azure OpenAI GPT, Google PaLM, Cohere Command...)
 
 <br/>
 
@@ -58,41 +101,81 @@ NOTE: the plugin support both Kestrel and IIS WebApp. Depending on the WebApp ty
     - Kestrel (.Net Core runtime), select `C# .NET 6.0` or higher
     - IIS (.Net Framework runtime), select `C# .NET Framework`
     - If you want to support both, select `C# .NET Framework & .NET 6.0` or higher. In this situation, dlls must have been copied in both `<sinequa>/bin` and `<sinequa>/website\bin` (see step #2)
+1. [Optional] This plugin uses the [TiktokenSharp](https://github.com/aiqinxuancai/TiktokenSharp) library. When using a new encoder for the first time, the required tiktoken files for the encoder will be downloaded from the internet (ref: [p50k_base.tiktoken](https://openaipublic.blob.core.windows.net/encodings/p50k_base.tiktoken) and [cl100k_base.tiktoken](https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken)). If you want, you can manually download these files and configure the `tikToken_GPT35` or `tikToken_GPT4` variables in the `AzureOpenAIModel.cs` file.
 
 
 <br/>
 
 ## <a name="installation_steps_plugin_env_vars"></a> Environment variables
 
+You must setup at least one model using the environment variables. Models are enabled when the environment variables are configured. Once configured, you can check the list of available models using the [List Models](#endpoint_list_models) endpoint.
+* [Azure Cognitive Service - Azure OpenAI GPT](#installation_steps_plugin_env_vars_azure)
+* [Google Vertex AI - Text Chat](#installation_steps_plugin_env_vars_google)
+* [Cohere - Command Chat](#installation_steps_plugin_env_vars_cohere)
+
+In addition to the model(s), you must configure user quota.
+* [User quota](#installation_steps_plugin_env_vars_quota)
+
 <br/>
 
-### <a name="installation_steps_plugin_env_vars_azure"></a> Azure Cognitive Service - Azure OpenAI
+### <a name="installation_steps_plugin_env_vars_azure"></a> Azure Cognitive Service - Azure OpenAI GPT
 
-For the plugin to work, you must set the following:
+To enable Azure OpenAI GPT models, you must set the following:
 - `azure-openai-api-url`
 - `azure-openai-api-key`
 <br/> and one of the following model deployment names
 - `azure-openai-gpt-35-deployment-name` or `azure-openai-gpt4-8k-deployment-name` or `azure-openai-gpt4-32k-deployment-name`
 
-Name | Type | Comment |
---- | --- | --- |
-`azure-openai-api-url` | string | *Azure OpenAI* endpoint. This information can be found in the *overview* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal. <br/> Example: https://`<Azure OpenAI Name>`.openai.azure.com/
-`azure-openai-api-key` | string | *Azure OpenAI* Key. This information can be found in the *Keys and Endpoint* of The *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
-`azure-openai-gpt-35-deployment-name` | string | *Model deployment name*. Name of the `	gpt-35-turbo` model. This information can be found in the *Model and deployments* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
-`azure-openai-gpt4-8k-deployment-name` | string | *Model deployment name*. Name of the `	gpt4-8k` model. This information can be found in the *Model and deployments* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
-`azure-openai-gpt4-32k-deployment-name` | string | *Model deployment name*. Name of the `	gpt4-32k` model. This information can be found in the *Model and deployments* of The *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
+Name | Type | Mandatory | Comment |
+--- | --- | --- | --- |
+`azure-openai-api-url` | string | Yes |  *Azure OpenAI* endpoint. This information can be found in the *overview* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal. <br/> Example: https://`<Azure OpenAI Name>`.openai.azure.com/
+`azure-openai-api-key` | string | Yes | *Azure OpenAI* Key. This information can be found in the *Keys and Endpoint* of The *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
+`azure-openai-gpt-35-deployment-name` | string | Yes | *Model deployment name*. Name of the `	gpt-35-turbo` model. This information can be found in the *Model and deployments* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
+`azure-openai-gpt4-8k-deployment-name` | string | Yes | *Model deployment name*. Name of the `	gpt4-8k` model. This information can be found in the *Model and deployments* of the *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
+`azure-openai-gpt4-32k-deployment-name` | string | Yes | *Model deployment name*. Name of the `	gpt4-32k` model. This information can be found in the *Model and deployments* of The *Azure Cognitive Service, Azure OpenAI* on the Azure Portal.
+`azure-openai-prompt-protection` | string | No | User message that gets inserted before any user prompt. Goal is to inject instructions to the model while chatting. Can be used to mitigate hallucinations. Example of prompt protection: *answer only in the context of the documents, do not use your knowledge*
 
 To learn more, read the following  Microsoft documentation: [Create a resource and deploy a model using Azure OpenAI](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/how-to/create-resource?pivots=web-portal)
 
 <br/>
 
-### <a name="installation_steps_plugin_env_vars_prompts"></a> Prompts
+### <a name="installation_steps_plugin_env_vars_google"></a> Google Vertex AI - Text Chat
 
-Name | Type | Comment |
---- | --- | --- |
-`azure-openai-gpt-35-prompt-protection` | string | A user prompt that gets injected by the backend before the last user prompt. This is typically used to restrict user interactions with the model. This environment variable is optional.
+To enable Google Vertex Text Chat model, you must set the following:
+- `google-vertexai-model-id`
+- `google-vertexai-endpoint`
+- `google-vertexai-project-id`
+- `google-vertexai-service-account-json-credentials`
 
+For the Google Vertex - Text Chat integration you must use a service account in the Google console and set the `aiplatform.endpoints.predict` permission. To give generative AI feature access to service accounts, you can give the service account the role Vertex AI Service Agent `roles/aiplatform.serviceAgent`. <br/>
+[See Google Access control documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/access-control)
+
+Name | Type | Mandatory | Comment |
+--- | --- | --- | --- |
+`google-vertexai-model-id` | string | Yes |  *Model ID*. This information can be found in the *Model Garden* of the *Vertex AI* section on the Google Cloud Console. <br/> Example: `chat-bison@001`
+`google-vertexai-endpoint` | string | Yes | *API Endpoint*. This information can be found in the *Model Garden* of the *Vertex AI* section on the Google Cloud Console. <br/> Example: `us-central1-aiplatform.googleapis.com`
+`google-vertexai-project-id` | string | Yes | *Project ID*. Project ID in your Organization. This information can be found on the Google Cloud Console.
+`google-vertexai-service-account-json-credentials` | string | Yes | Path to the Service Account JSON private key file. Must be accessible from all WebApps. File can be downloaded from the *APIs & Services, Credentials* section on the Google Cloud Console.
+`google-vertexai-prompt-protection` | string | No | User message that gets inserted before any user prompt. Goal is to inject instructions to the model while chatting. Can be used to mitigate hallucinations. Example of prompt protection: *answer only in the context of the documents, do not use your knowledge*
 <br/>
+
+
+### <a name="installation_steps_plugin_env_vars_cohere"></a> Cohere - Command Chat
+
+To enable Cohere Command model, you must set the following:
+- `cohere-generate-endpoint`
+- `cohere-generate-api-key`
+- `cohere-tokenizer-endpoint`
+- `cohere-generate-prompt-protection`
+
+Cohere integration rely on Cohere the public REST API.
+
+Name | Type | Mandatory | Comment |
+--- | --- | --- | --- |
+`cohere-generate-endpoint` | string | Yes | *Co.Generate API Endpoint*. This information can be found in the *API Reference* on the Cohere Website.
+`cohere-generate-api-key` | string | Yes | *API Key*.
+`cohere-tokenizer-endpoint` | string | Yes | *Co.Tokenize API Endpoint*. This information can be found in the *API Reference* on the Cohere Website.
+`cohere-generate-prompt-protection` | string | No | User message that gets inserted before any user prompt. Goal is to inject instructions to the model while chatting. Can be used to mitigate hallucinations. Example of prompt protection: *answer only in the context of the documents, do not use your knowledge*
 
 ### <a name="installation_steps_plugin_env_vars_quota"></a> User quota
 
@@ -111,7 +194,7 @@ Name | Type | Comment |
 
 New SBA components are available on the [SBA GitHub - Chatgpt-integration branch](https://github.com/sinequa/sba-angular/tree/chatgpt-integration).
 
-To learn more, read the [ChatGPT SBA integration](#sba_integration) section of the documentation.
+To learn more, read the [ChatGPT SBA integration](#sba_integration) section of the documentation below.
 
 
 <br/>
@@ -301,14 +384,25 @@ You must specify the `action` in the raw body payload:
 Parameters:
 Name | Type | Mandatory | Default value | Comment |
 --- | --- | :----: | --- | --- |
-`action` | string | X | | `listmodels` \| `tokencount` \| `chat`
+`action` | string | X | | `listmodels` \| `tokencount` \| `chat` \| `answer` \| `context` \| `quota`
 `debug` | bool | | | enable debug mode
 
 <br/>
 
+- [List Models](#endpoint_list_models)
+- [Token Count](#endpoint_token_count)
+- [Chat](#endpoint_chat)
+- [Answer](#endpoint_answer)
+- [Context](#endpoint_context)
+- [Quota](#endpoint_quota)
+
+<br/><br/>
+
 ## <a name="endpoint_list_models"></a> List Models
 
-Returns the list of available models (model type) that can be used by the client. Only models that have been configured in the environment variables for [Azure Cognitive Service - Azure OpenAI](#installation_steps_plugin_env_vars_azure) will be listed.
+Returns the list of available models (model type) that can be used by the client. Only models that have been configured in the [environment variables](#installation_steps_plugin_env_vars) will be listed. 
+
+See list of supported [Providers and models](#providers_and_models) 
 
 Input sample:
 ```json
@@ -323,8 +417,9 @@ Output sample:
     "models": [
         {
             "name": "GPT35Turbo",
-            "displayName": "Azure OpenAI - GPT3.5 Turbo",
+            "displayName": "Azure OpenAI - GPT3.5 - 4K Tokens",
             "size": 4097,
+            "eventStream": true,
             "provider": "OpenAI",
             "penaltyMin": 0.0,
             "penaltyMax": 1.0,
@@ -339,8 +434,9 @@ Output sample:
         },
         {
             "name": "GPT4-8K",
-            "displayName": "Azure OpenAI - GPT4 - 8K",
+            "displayName": "Azure OpenAI - GPT4 - 8K Tokens",
             "size": 8192,
+            "eventStream": true,
             "provider": "OpenAI",
             "penaltyMin": 0.0,
             "penaltyMax": 1.0,
@@ -352,23 +448,60 @@ Output sample:
             "generateTokensMax": 2000,
             "topPMin": 0.0,
             "topPMax": 1.0
+        },
+        {
+            "name": "GPT4-32K",
+            "displayName": "Azure OpenAI - GPT4 - 32K Tokens",
+            "size": 32768,
+            "eventStream": true,
+            "provider": "OpenAI",
+            "penaltyMin": 0.0,
+            "penaltyMax": 1.0,
+            "bestOfMin": 1,
+            "bestOfMax": 10,
+            "temperatureMin": 0.0,
+            "temperatureMax": 2.0,
+            "generateTokensMin": 1,
+            "generateTokensMax": 2000,
+            "topPMin": 0.0,
+            "topPMax": 1.0
+        },
+        {
+            "name": "Chat-Bison-001",
+            "displayName": "Google - PaLM - 4K Tokens",
+            "size": 4096,
+            "eventStream": false,
+            "provider": "Google",
+            "topKMin": 1.0,
+            "topKMax": 40.0,
+            "temperatureMin": 0.0,
+            "temperatureMax": 1.0,
+            "generateTokensMin": 1,
+            "generateTokensMax": 1024,
+            "topPMin": 0.0,
+            "topPMax": 1.0
+        },
+        {
+            "name": "command-xlarge-nightly",
+            "displayName": "Cohere - Command XL Beta - 4K Tokens",
+            "size": 4000,
+            "eventStream": false,
+            "provider": "Cohere",
+            "topKMin": 0.0,
+            "topKMax": 500.0,
+            "temperatureMin": 0.0,
+            "temperatureMax": 2.0,
+            "generateTokensMin": 1,
+            "generateTokensMax": 4095,
+            "topPMin": -1.0,
+            "topPMax": -1.0
         }
     ],
     "methodresult": "ok"
 }
 ```
 
-For now, supported models are:
-- `GPT35Turbo` : [gpt-35-turbo](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-3-models-1)
-- `GPT4-8K` : [gpt-4](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-4-models)
-- `GPT4-32K` : [gpt-4-32k](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/models#gpt-4-models)
-
-To learn more, read the following Microsoft documentation:
-- [Azure OpenAI Service pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/)
-
-- [Azure OpenAI Service REST API reference - Completions](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/reference#completions)
-
-<br/>
+<br/><br/>
 
 ## <a name="endpoint_token_count"></a> Token Count
 
@@ -397,26 +530,25 @@ Output sample:
 ```json
 {
     "tokens": [
-        6,
-        114,
-        14
+        5,
+        118,
+        16
     ],
     "methodresult": "ok"
 }
 ```
 
-<br/>
+<br/><br/>
 
 ## <a name="endpoint_chat"></a> Chat
-
-
 
 Parameters:
 Name | Type | Mandatory | Default value | Comment |
 --- | --- | :----: | --- | --- |
 `messagesHistory` | object | X | | see [messagesHistory](#param_msghistory) object
 `model` | object | | | see [model](#param_model) object
-`promptProtection` | bool || true | see [Prompts](#installation_steps_plugin_env_vars_prompts)
+`stream` | boolean | | | enable streaming mode
+`promptProtection` | bool || true | refer to environment variables `<provider>-<model>-prompt-protection` 
 
 <a name="param_msghistory"></a> **messagesHistory** parameters:
 Name | Type | Mandatory | Default value | Comment |
@@ -435,18 +567,186 @@ generateTokens | int | | 800 | The maximum number of tokens to generate in the c
 frequencyPenalty | double | | 0 | Positive values penalize new tokens based on whether they appeared in the text so far, increasing the model's likelihood to talk about new topics.
 presencePenalty | double | | 0 | Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim.
 topP | double | | 0.95 | An alternative to sampling with temperature called nucleus sampling where the model considers the results of the tokens with top_p probability mass. For example, 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both.
-
-<br/>
-<br/>
-
-# <a name="azure_openai_policy"></a> Azure OpenAI data, privacy and security policy
-
-[Data, privacy, and security for Azure OpenAI Service](https://learn.microsoft.com/en-us/legal/cognitive-services/openai/data-privacy)
-
->Is customer data processed by Azure OpenAI sent to OpenAI? No. Microsoft hosts the OpenAI models within our Azure infrastructure, and all customer data sent to Azure OpenAI remains within the Azure OpenAI service.
-
->Is customer data used to train the OpenAI models? No. We do not use customer data to train, retrain or improve the models in the Azure OpenAI Service.
-
->Prompts and completions. The prompts and completions data may be temporarily stored by the Azure OpenAI Service in the same region as the resource for up to 30 days. This data is encrypted and is only accessible to authorized Microsoft employees for (1) debugging purposes in the event of a failure, and (2) investigating patterns of abuse and misuse to determine if the service is being used in a manner that violates the applicable product terms. Note: When a customer is approved for modified abuse monitoring, prompts and completions data are not stored, and thus Microsoft employees have no access to the data.
+topK | int | | 40 | Top-K changes how the model selects tokens for output. A top-K of 1 means the next selected token is the most probable among all tokens in the model's vocabulary (also called greedy decoding), while a top-K of 3 means that the next token is selected from among the three most probable tokens by using temperature.
 
 
+Input sample:
+```json
+{
+  "action": "chat",
+  "model": {
+    "name": "GPT35Turbo",
+    "temperature": 1,
+    "generateTokens": 800,
+    "topP": 1
+  },
+  "messagesHistory": [
+    {
+      "role": "system",
+      "content": "Please generate a summary of theses passages",
+      "display": false
+    },
+    {
+      "role": "user",
+      "content": "<document id=\"1\"  The vast majority of France's territory and population is situated in Western Europe and is called Metropolitan France, to distinguish it from the country's various overseas polities. It is bordered by the North Sea in the north, the English Channel in the northwest, the Atlantic Ocean in the west and the Mediterranean sea in the southeast. Its land borders consist of Belgium and Luxembourg in the northeast, Germany and Switzerland in the east, Italy and Monaco in the southeast, and Andorra and Spain in the south and southwest. Except for the northeast, most of France's land borders are roughly delineated by natural boundaries and geographic features: to the south and southeast, the Pyrenees and the Alps and the Jura, respectively, and to the east, the Rhine river. Due to its shape, France is often referred to as l'Hexagone ('The Hexagon'). Metropolitan France includes various coastal islands, of which the largest is Corsica. Metropolitan France is situated mostly between latitudes 41° and 51° N, and longitudes 6° W and 10° E, on the western edge of Europe, and thus lies within the northern temperate zone. Its continental part covers about 1000 km from north to south and from east to west. Metropolitan France covers 551,500 square kilometres (212,935 sq mi),[87] the largest among European Union members.[19] France's total land area, with its overseas departments and territories (excluding Adélie Land), is 643,801 km2 (248,573 sq mi), 0.45% of the total land area on Earth. France possesses a wide variety of landscapes, from coastal plains in the north and west to mountain ranges of the Alps in the southeast, the Massif Central in the south-central and Pyrenees in the southwest. Due to its numerous overseas departments and territories scattered across the planet, France possesses the second-largest Exclusive economic zone (EEZ) in the world, covering 11,035,000 km2 (4,261,000 sq mi), just behind the EEZ of the United States, which covers 11,351,000 km2 (4,383,000 sq mi), but ahead of the EEZ of Australia, which covers 8,148,250 km2 (3,146,000 sq mi). Its EEZ covers approximately 8% of the total surface of all the EEZs of the world.</document>",
+        "display": false
+    }, 
+    {
+        "role": "assistant",
+        "content": "This passage describes the geography of France, including its location in Western Europe and its various land and sea borders. The country is nicknamed \"l'Hexagone\" due to its shape and includes a variety of landscapes, such as coastal plains and mountain ranges. France has the largest total land area among European Union members and possesses a wide variety of overseas departments and territories, giving it the second-largest Exclusive economic zone in the world.",
+        "display": true,
+        "tokens": 0
+    },
+    {
+        "role": "user",
+        "content": "What is the land area of France ?"
+    }
+  ],
+  "promptProtection": false
+}
+```
+
+Output sample:
+```json
+{
+    "messagesHistory": [
+        {
+            "role": "system",
+            "content": "Please generate a summary of theses passages",
+            "display": false,
+            "tokens": 0
+        },
+        {
+            "role": "user",
+            "content": "<document id=\"1\"  The vast majority of France's territory and population is situated in Western Europe and is called Metropolitan France, to distinguish it from the country's various overseas polities. It is bordered by the North Sea in the north, the English Channel in the northwest, the Atlantic Ocean in the west and the Mediterranean sea in the southeast. Its land borders consist of Belgium and Luxembourg in the northeast, Germany and Switzerland in the east, Italy and Monaco in the southeast, and Andorra and Spain in the south and southwest. Except for the northeast, most of France's land borders are roughly delineated by natural boundaries and geographic features: to the south and southeast, the Pyrenees and the Alps and the Jura, respectively, and to the east, the Rhine river. Due to its shape, France is often referred to as l'Hexagone ('The Hexagon'). Metropolitan France includes various coastal islands, of which the largest is Corsica. Metropolitan France is situated mostly between latitudes 41° and 51° N, and longitudes 6° W and 10° E, on the western edge of Europe, and thus lies within the northern temperate zone. Its continental part covers about 1000 km from north to south and from east to west. Metropolitan France covers 551,500 square kilometres (212,935 sq mi),[87] the largest among European Union members.[19] France's total land area, with its overseas departments and territories (excluding Adélie Land), is 643,801 km2 (248,573 sq mi), 0.45% of the total land area on Earth. France possesses a wide variety of landscapes, from coastal plains in the north and west to mountain ranges of the Alps in the southeast, the Massif Central in the south-central and Pyrenees in the southwest. Due to its numerous overseas departments and territories scattered across the planet, France possesses the second-largest Exclusive economic zone (EEZ) in the world, covering 11,035,000 km2 (4,261,000 sq mi), just behind the EEZ of the United States, which covers 11,351,000 km2 (4,383,000 sq mi), but ahead of the EEZ of Australia, which covers 8,148,250 km2 (3,146,000 sq mi). Its EEZ covers approximately 8% of the total surface of all the EEZs of the world.</document>",
+            "display": false,
+            "tokens": 0
+        },
+        {
+            "role": "assistant",
+            "content": "This passage describes the geography of France, including its location in Western Europe and its various land and sea borders. The country is nicknamed \"l'Hexagone\" due to its shape and includes a variety of landscapes, such as coastal plains and mountain ranges. France has the largest total land area among European Union members and possesses a wide variety of overseas departments and territories, giving it the second-largest Exclusive economic zone in the world.",
+            "display": true,
+            "tokens": 0
+        },
+        {
+            "role": "user",
+            "content": "What is the land area of France ?",
+            "display": false,
+            "tokens": 0
+        },
+        {
+            "role": "assistant",
+            "content": "The land area of metropolitan France is 551,500 square kilometers (212,935 sq mi). However, including its overseas departments and territories (excluding Adélie Land), the total land area of France is 643,801 km2 (248,573 sq mi).",
+            "display": true,
+            "tokens": 0
+        }
+    ],
+    "tokens": {
+        "leftForPrompt": 2611,
+        "model": 4097,
+        "generation": 800,
+        "used": 686,
+        "quota": {
+            "tokenCount": 1764,
+            "periodTokens": 3000000,
+            "resetHours": 1,
+            "enabled": true,
+            "lastResetUTC": "2023-06-30T08:14:55Z",
+            "nextResetUTC": "2023-06-30T09:14:55Z"
+        }
+    },
+    "methodresult": "ok"
+}
+```
+
+
+<br/><br/>
+
+## <a name="endpoint_answer"></a> Answer
+
+Parameters:
+Name | Type | Mandatory | Default value | Comment |
+--- | --- | :----: | --- | --- |
+`messagesHistory` | object | X | | see [messagesHistory](#param_msghistory) object
+
+Input sample:
+```json
+```
+
+Output sample:
+```json
+```
+
+<br/><br/>
+
+## <a name="endpoint_context"></a> Context
+
+Parameters:
+Name | Type | Mandatory | Default value | Comment |
+--- | --- | :----: | --- | --- |
+`app` | string | X | | App name
+`query` | object | X | | Query parameters, see [documentation](#https://doc.sinequa.com/en.sinequa-es.v11/Content/en.sinequa-es.devDoc.webservice.rest-search.html#app-query-parameters)
+`strategy` | string | X | | Context strategy. Possible values: `TopPassagesByScore`
+`topPassages` | string | | 5 | Number of top passages to add to the context
+`topPassagesMinScore` | double | | 0.5 | Passage minimum score to be added to the context
+`extendPassageMode` | string | | None | Possible values: `None`, `Sentence` and `Passage`
+`extendSentences` | int | | 0 | Number of sentences to add before and after a passage to extent the scope of the passage.
+`docColumns` | string array | | | List of columns that gets added as attributes of the `<document>` tag
+
+Input sample:
+```json
+{
+    "action": "context",
+    "app": "Wikipedia_NS",
+    "query": {
+        "name": "query_wikipedia_ns",
+        "text": "what is an acid test ?",
+        "tab": "all"
+    },
+    "contextOptions":{
+        "strategy": "TopPassagesByScore",
+        "docColumns":[
+            "title",
+            "modified"
+        ],
+        "topPassages" : 3
+    }
+}
+```
+
+Output sample:
+```json
+{
+    "context": "<document title=\"Acid test (gold)\" modified=\"2022-04-23 05:37:41\">Acid test (gold)\n\nAcid test (gold)\n\nAn acid test is any qualitative chemical or metallurgical assay which uses acid ; most commonly, and historically, the use of a strong acid to distinguish gold from base metals . Figuratively, acid test is any definitive test for some attribute, e.g. of a person's character, or of the performance of product.\n\nFor other uses, see Acid test (disambiguation) .\n\nChemistryOther examples of the figurative use of the phrase are the web sites Acid1 , Acid2 and Acid3 , which are designed to test web browsers for compliance with current web standards . Another example is the quick ratio method, nicknamed \"acid test\", used by financial analysts to assess the liquidity of a business.\n\nThe use of the term \" acid test \" for experiences with the psychedelic drug LSD [7] was popularised by the Merry Pranksters , and derives from the drug's common name, \"acid\".\n\nReferences\n\nBunge, Mario (1998). Philosophy of Science: From Explanation to Justification . Transaction Publishers. p. 343. ISBN 9780765804143 .The figurative meaning of the expression, where it is applied to tests of character, or definitive tests to other materials, became popular during and after the California Gold Rush , [5] but was current before then, as shown by this quote from the Wisconsin paper The Columbia Reporter , November 1845: \"Twenty-four years of service demonstrates his ability to stand the acid test , as Gibson's Soap Polish has done for over thirty years.\" [6]</document>\r\n<document title=\"Acid test\" modified=\"2022-04-22 21:21:55\">Acid test\n\nAcid test\n\nAcid test or acid tests may refer to:\n\nLook up acid test or acid tests in Wiktionary, the free dictionary.\n\nScientific or metallurgical test\n\nAcid test (gold) , a chemical or metallurgical test that uses acid, now also a general term for verified , approved , or tested in a large number of fields\n\nAcid test, within a Petrocalcic Horizon , the use of hydrochloric acid to test rock or soil for carbonates\n\nIn the classification of a rock's Lithology , dilute hydrochloric acid may be used to detect the presence of carbonate minerals\n\nArt, entertainment, and media\n\nBands\n\nAcid Test (band) , a Canadian alternative rock band\n\nACID-TEST, a Japanese band headed by singer Kazutoshi SakuraiOther uses\n\n\"Acid Test\", a song by Emma Pollock from her album Watch the Fireworks (2007)\n\n\"The Acid Test\", a science quiz from 1994 to 1997 on BBC Five Live , hosted by Kate Bellingham\n\nBusiness\n\nQuick ratio , also known as acid-test ratio or acid-test liquidity ratio, a measure of a company's cash liquidity\n\nComputing and technology\n\nAcid1 , Acid2 and Acid3 , test suites for web browsers\n\nACID (atomicity, consistency, isolation, durability) is set of properties of database transactions intended to guarantee validity even in the event of errors\n\nOther uses\n\nThe Acid Tests , parties conducted by the Merry Pranksters, centered on the use of LSD (acid)\n\nSee also\n\nAcid (disambiguation)\n\nLitmus (disambiguation)</document>\r\n<document title=\"Acid Tests\" modified=\"2022-04-22 19:06:26\">Acid Tests\n\nAcid Tests\n\nThe Acid Tests were a series of parties held by author Ken Kesey primarily in the San Francisco Bay Area during the mid-1960s, centered on the use of and advocacy for the psychedelic drug LSD , commonly known as \"acid\". LSD was not made illegal in California until October 6, 1966.\n\nFor other uses, see Acid test (disambiguation) .\n\nAcid Tests Part of the Hippie movement\n\nAn Acid Test handbill\n\nDate\n\n1965-1966\n\nLocation\n\nCalifornia\n\nPart of a series on\n\nPsychedelia\n\nArts\n\nPsychedelic art\n\nAlgorithmic art\n\nCyberdelic\n\nDiffraction\n\nFractal art\n\nLiquid light show\n\nLSD art\n\nPaisley\n\nPhosphene\n\nPsychedelic music\n\nAcid house\n\nAcid jazz\n\nAcid rock\n\nAcid techno\n\nAcid trance\n\nChillwave\n\nHypnagogic pop\n\nMadchester\n\nNeo-psychedelia\n\nPeyote song\n\nP-FunkMDMA\n\nPhilosophy of psychedelics\n\nPsychonautics\n\nProhibition of drugs\n\nRave\n\nRecreational drug use\n\nSurrealism\n\nThe name \"Acid Test\" was coined by Kesey, after the term \" acid test \" used by gold miners in the 1850s. He began throwing parties at his farm at La Honda , California. [1] The Merry Pranksters were central to organizing the Acid Tests, including Pranksters such as Lee Quarnstrom and Neal Cassady . Other people, such as LSD chemists Owsley Stanley and Tim Scully , were involved as well.</document>",
+    "methodresult": "ok"
+}
+```
+
+
+<br/><br/>
+
+## <a name="endpoint_quota"></a> Quota
+
+Parameters: No specific parameters
+
+Input sample:
+```json
+{
+    "action": "quota"
+}
+```
+
+Output sample:
+```json
+{
+    "quota": {
+        "tokenCount": 12474,
+        "periodTokens": 3000000,
+        "resetHours": 1,
+        "enabled": true,
+        "lastResetUTC": "2023-06-30T13:36:48Z",
+        "nextResetUTC": "2023-06-30T14:36:48Z"
+    },
+    "methodresult": "ok"
+}
+```

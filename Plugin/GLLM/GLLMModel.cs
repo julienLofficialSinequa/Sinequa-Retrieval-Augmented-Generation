@@ -7,6 +7,14 @@ using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using Azure.AI.OpenAI;
 using System.Linq;
+using Sinequa.Search;
+using Sinequa.Web;
+using Sinequa.Search.JsonMethods;
+using System.Diagnostics;
+using System.Web;
+#if NETCOREAPP
+using Microsoft.AspNetCore.Http;
+#endif
 
 namespace Sinequa.Plugin
 {
@@ -14,28 +22,36 @@ namespace Sinequa.Plugin
     public enum ModelProvider
     {
         [EnumMember(Value = "OpenAI")]
-        AzureOpenAI
+        AzureOpenAI,
+        [EnumMember(Value = "Google")]
+        Google,
+        [EnumMember(Value = "Cohere")]
+        Cohere
     }
-
 
     [JsonConverter(typeof(StringEnumConverter))]
     public enum ModelName
     {
         [EnumMember(Value = "GPT35Turbo")]
-        GPT35Turbo,
+        AzureOpenAI_GPT35Turbo,
         [EnumMember(Value = "GPT4-8K")]
-        GPT4_8K,
+        AzureOpenAI_GPT4_8K,
         [EnumMember(Value = "GPT4-32K")]
-        GPT4_32K
+        AzureOpenAI_GPT4_32K,
+        [EnumMember(Value = "Chat-Bison-001")]
+        GoogleVertex_Chat_Bison_001,
+        [EnumMember(Value = "Command-xlarge-nightly")]
+        Cohere_Command_XL_Beta
     }
-
 
     public abstract class GLLMModel
     {
         public abstract ModelProvider provider { get; }
         public abstract ModelName name { get; }
+
         public abstract string displayName { get; }
         public abstract int size { get; }
+        public abstract bool eventStream { get; }
 
         [JsonIgnore]
         public abstract Json postBody { get; }
@@ -46,6 +62,8 @@ namespace Sinequa.Plugin
         public int generateTokensMax { get; }
         public double topPMin { get; }
         public double topPMax { get; }
+
+        internal Stopwatch sw = new Stopwatch();
 
         [JsonIgnore]
         public ModelParameters parameters { get; }
@@ -61,8 +79,12 @@ namespace Sinequa.Plugin
         [JsonIgnore]
         public string promptProtection = String.Empty;
 
-        public GLLMModel(ModelParameters modelParams, double temperatureMin, double temperatureMax, int generateTokensMin, int generateTokensMax, double topPMin, double topPMax)
+        [JsonIgnore]
+        internal SearchSession session;
+
+        public GLLMModel(SearchSession session, ModelParameters modelParams, double temperatureMin, double temperatureMax, int generateTokensMin, int generateTokensMax, double topPMin, double topPMax)
         {
+            this.session = session;
             this.temperatureMin = temperatureMin;
             this.temperatureMax = temperatureMax;
             this.generateTokensMin = generateTokensMin;
@@ -74,11 +96,19 @@ namespace Sinequa.Plugin
 
         public abstract GLLMResponse QueryAPI(out int HTTPCode, out string errorMessage);
 
+        public abstract void StreamQueryAPI(JsonMethod method, GLLMQuota quota);
+
         public abstract bool LoadEnvVars(out string errorMessage);
 
         public abstract bool CheckInputParams(out string errorMessage);
 
-        public int CountTokens(string str) => GLLMTokenizer.Count(name, str);
+        public abstract int Tokenizer(string str, out int HTTPCode, out string errorMessage);
+        public int CountTokens(string str)
+        {
+            if (String.IsNullOrEmpty(str)) return 0;
+            return Tokenizer(str, out int HTTPCode, out string errorMessage);
+        }
+        public int CountMessagesTokens() => messages.Sum(_ => CountTokens(_.content));
 
         public JsonObject TokensStats(int used, GLLMQuota quota)
         {
@@ -102,65 +132,91 @@ namespace Sinequa.Plugin
             messages.Insert(messages.Count - 2, new SBAChatMessage(role, content, false));
         }
 
-        public void AddMessage(ChatRole role, string content, bool display)
+        public void AddMessage(ChatRole role, string content, bool display) => messages.Add(new SBAChatMessage(role, content, display));
+
+        public void AddMessage(SBAChatMessage SBAChatMessage) => messages.Add(SBAChatMessage);
+
+        internal void FlushMessage(HttpResponse response, Json json)
         {
-            messages.Add(new SBAChatMessage(role, content, display));
+#if NETCOREAPP
+            response.WriteAsync($"data: {Json.Serialize(json, false)}\n\n");
+            response.Body.Flush();
+#else
+            response.Write($"data: {Json.Serialize(json, false)}\n\n");
+            response.Flush();
+#endif
         }
 
-        public void AddMessage(SBAChatMessage SBAChatMessage)
+        internal Json EventMessage(string content, int tokens, bool stop = false)
         {
-            messages.Add(SBAChatMessage);
+            JsonObject j = new JsonObject();
+            j.Set("content", content);
+            j.Set("tokens", tokens);
+            j.Set("stop", stop);
+            return j;
         }
-
     }
 
     public class GLLMResponse
     {
-        public ModelProvider provider { get; }
+        private GLLMModel _model;
+        private object _response;
+        public long generationAPITime { get; }
 
-        private ChatCompletions AzureOpenAIResponse;
-
-        public int UsageTotalTokens => AzureOpenAIResponse.Usage.TotalTokens;
-
-        public GLLMResponse(ModelProvider provider) 
-        { 
-            this.provider = provider;
+        public GLLMResponse(GLLMModel model, long generationAPITime)
+        {
+            this._model = model;
+            this.generationAPITime = generationAPITime;
         }
 
         public void SetResponse(object response)
         {
-            switch (this.provider)
+            _response = response;
+        }
+
+        public int UsageTotalTokens
+        {
+            get
             {
-                case ModelProvider.AzureOpenAI:
-                    AzureOpenAIResponse = (ChatCompletions)response; 
-                    break;
-                default: throw new NotImplementedException();
+                switch (_model.name)
+                {
+                    case ModelName.AzureOpenAI_GPT35Turbo:
+                    case ModelName.AzureOpenAI_GPT4_8K:
+                    case ModelName.AzureOpenAI_GPT4_32K:
+                        return (_response as ChatCompletions).Usage.TotalTokens;
+                    case ModelName.GoogleVertex_Chat_Bison_001:
+                        return (_response as VertexAIBisonResponse).predictions.Sum(_ => _.candidates.Sum(__ => _model.CountTokens(__.content)));
+                    case ModelName.Cohere_Command_XL_Beta:
+                        var res = _response as CohereCommandResponse;
+                        return res.generations.Sum(_ => _model.CountTokens(_.text)) + _model.CountTokens(res.prompt);
+                    default:
+                        return 0;
+                }
             }
         }
 
         public Json JsonResponse()
         {
-            switch (this.provider)
-            {
-                case ModelProvider.AzureOpenAI:
-                    return Json.Deserialize(JsonConvert.SerializeObject(AzureOpenAIResponse));
-                default: throw new NotImplementedException();
-            }
+            return Json.Deserialize(JsonConvert.SerializeObject(_response));
         }
 
         public SBAChatMessage GetMessage()
         {
-            SBAChatMessage msg;
-
-            switch (this.provider)
+            switch (_model.name)
             {
-                case ModelProvider.AzureOpenAI:
-                    ChatChoice choice = AzureOpenAIResponse.Choices.First();
-                    msg = new SBAChatMessage(choice.Message.Role, choice.Message.Content, true);
-                    break;
+                case ModelName.AzureOpenAI_GPT35Turbo:
+                case ModelName.AzureOpenAI_GPT4_8K:
+                case ModelName.AzureOpenAI_GPT4_32K:
+                    ChatChoice choice = (_response as ChatCompletions).Choices.First();
+                    return new SBAChatMessage(choice.Message.Role, choice.Message.Content, true);
+                case ModelName.GoogleVertex_Chat_Bison_001:
+                    VertexAIChatMessage condidate = (_response as VertexAIBisonResponse).predictions.First().candidates.First();
+                    return new SBAChatMessage(condidate.role, condidate.content, true);
+                case ModelName.Cohere_Command_XL_Beta:
+                    CohereCommandGeneration generation = (_response as CohereCommandResponse).generations.First();
+                    return new SBAChatMessage(ChatRole.Assistant, generation.text, true);
                 default: throw new NotImplementedException();
             }
-            return msg;
         }
     }
 

@@ -4,6 +4,17 @@ using Sinequa.Configuration;
 using Azure.AI.OpenAI;
 using Azure;
 using Newtonsoft.Json;
+using Sinequa.Search;
+using System.Threading.Tasks;
+using Sinequa.Search.JsonMethods;
+using System.Diagnostics;
+using System.Text;
+using TiktokenSharp;
+using System.Web;
+#if NETCOREAPP
+using Microsoft.AspNetCore.Http;
+#endif
+
 
 namespace Sinequa.Plugin
 {
@@ -40,14 +51,12 @@ namespace Sinequa.Plugin
         internal string APIUrl = "";
         internal string APIKey = "";
         internal string modelDeploymentName = "";
-        internal CCPrincipal user;
         internal ChatCompletionsOptions post;
 
         public override Json postBody => Json.Deserialize(JsonConvert.SerializeObject(this.post));
 
-        protected AzureOpenAIModel(ModelParameters modelParams, CCPrincipal user) : base(modelParams, TEMP_MIN, TEMP_MAX, GEN_TOKEN_MIN, GEN_TOKEN_MAX, TOP_P_MIN, TOP_P_MAX)
+        protected AzureOpenAIModel(SearchSession session, ModelParameters modelParams) : base(session, modelParams, TEMP_MIN, TEMP_MAX, GEN_TOKEN_MIN, GEN_TOKEN_MAX, TOP_P_MIN, TOP_P_MAX)
         {
-            this.user = user;
             this.penaltyMin = PENALTY_MIN;
             this.penaltyMax = PENALTY_MAX;
             this.bestOfMin = BEST_OF_MIN;
@@ -90,16 +99,19 @@ namespace Sinequa.Plugin
             return string.IsNullOrEmpty(errorMessage);
         }
 
+        
         public override GLLMResponse QueryAPI(out int HTTPCode, out string errorMessage)
         {
+            sw.Restart();
             HTTPCode = 0;
             errorMessage = "";
 
+            
             OpenAIClient client = new OpenAIClient(new Uri(APIUrl), new AzureKeyCredential(APIKey));
 
             Response<ChatCompletions> responseWithoutStream = client.GetChatCompletionsAsync(
                 modelDeploymentName,
-                PostBody(user)
+                PostBody(session.User)
             ).Result;
 
             if (responseWithoutStream.GetRawResponse().IsError)
@@ -109,10 +121,76 @@ namespace Sinequa.Plugin
                 return null;
             }
 
-            GLLMResponse res = new GLLMResponse(this.provider);
+            GLLMResponse res = new GLLMResponse(this, sw.ElapsedMilliseconds);
             res.SetResponse(responseWithoutStream.Value);
 
             return res;
+        }
+
+        public override void StreamQueryAPI(JsonMethod method, GLLMQuota quota)
+        {
+#if NETCOREAPP
+            HttpResponse res = method.Hm.GetContext().Response;
+
+            var q = method.Hm.GetContext().Request;
+
+            OpenAIClient client = new OpenAIClient(new Uri(APIUrl), new AzureKeyCredential(APIKey));
+
+            Response<StreamingChatCompletions> response = client.GetChatCompletionsStreamingAsync(
+                modelDeploymentName,
+                PostBody(session.User)).Result;
+
+            //set HTTP status code
+            res.StatusCode = response.GetRawResponse().Status;
+            if (response.GetRawResponse().IsError) return;
+
+            //Set HTTP response to event-stream
+            res.Headers.Append("Content-Type", "text/event-stream");
+            res.Headers.Append("Cache-Control", "no-store");
+            res.Headers.Append("Access-Control-Allow-Origin", "*");
+            res.Headers.Append("Access-Control-Allow-Credentials", "true");
+            res.Body.Flush();
+
+            //token & quota stats
+            int tokenCount = CountMessagesTokens();
+
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            using StreamingChatCompletions streamingChatCompletions = response.Value;
+
+            foreach (StreamingChatChoice choice in streamingChatCompletions.GetChoicesStreaming().ToBlockingEnumerable())
+            {
+                StringBuilder sb = new StringBuilder();
+
+                foreach (ChatMessage message in choice.GetMessageStreaming().ToBlockingEnumerable())
+                {
+                    tokenCount += CountTokens(message.Content);
+                    sb.Append(message.Content);
+
+                    if (stopwatch.ElapsedMilliseconds >= 500)
+                    {
+                        FlushMessage(res, EventMessage(sb.ToString(), tokenCount, false));
+
+                        sb.Clear();
+                        stopwatch.Restart();
+                    }
+                }
+                FlushMessage(res, EventMessage(sb.ToString(), tokenCount, true));
+            }
+
+            //update quota
+            //no quota for admins
+            if (quota.enabled && method.Session.IsAdmin)
+            {
+                quota.Update(tokenCount);
+            }
+
+            //close stream
+            method.Hm.SetResponseEndCalled(true);
+#else
+            throw new Exception("Streaming only supported with Kestrel WebApp");
+#endif
         }
 
         private ChatCompletionsOptions PostBody(CCPrincipal user)
@@ -131,20 +209,28 @@ namespace Sinequa.Plugin
             this.post = chatCompletionsOptions;
             return chatCompletionsOptions;
         }
+
     }
 
     public class AzureOpenAIGPT35Turbo : AzureOpenAIModel
     {
-        public AzureOpenAIGPT35Turbo(ModelParameters modelParams, CCPrincipal user) : base(modelParams, user)
+        public static AzureOpenAIGPT35Turbo GetDefaultInstance(SearchSession session)
+        {
+            return new AzureOpenAIGPT35Turbo(session, null);
+        }
+
+        public AzureOpenAIGPT35Turbo(SearchSession session, ModelParameters modelParams) : base(session, modelParams)
         {
             //override model default values here
         }
 
-        public override ModelName name => ModelName.GPT35Turbo;
-
-        public override string displayName => "Azure OpenAI - GPT3.5 Turbo";
+        public override ModelName name => ModelName.AzureOpenAI_GPT35Turbo;
+        
+        public override string displayName => "Azure OpenAI - GPT3.5 - 4K Tokens";
 
         public override int size => 4_097;
+
+        public override bool eventStream => true;
 
         public override string envVarAPIUrl => "%%azure-openai-api-url%%";
 
@@ -153,20 +239,49 @@ namespace Sinequa.Plugin
         public override string envVarDeploymentName => "%%azure-openai-gpt-35-deployment-name%%";
 
         public override string envVarPromptProtection => "%%azure-openai-gpt-35-prompt-protection%%";
+
+        private static TikToken tikToken_GPT35 
+        { 
+            get
+            {
+                //https://github.com/aiqinxuancai/TiktokenSharp
+                //path to p50k_base.tiktoken file
+                //default is <sinequa>/<bin|website/bin>/bpe/p50k_base.tiktoken
+                //TikToken.PBEFileDirectory = "";
+                return TikToken.EncodingForModel("p50k_base");
+            }
+        }
+
+        public override int Tokenizer(string str, out int HTTPCode, out string errorMessage)
+        {
+            HTTPCode = 200;
+            errorMessage = "";
+            return tikToken_GPT35.Encode(str).Count;
+        }
+
+
     }
 
     public class AzureOpenAIGPT4_8K : AzureOpenAIModel
     {
-        public AzureOpenAIGPT4_8K(ModelParameters modelParams, CCPrincipal user) : base(modelParams, user)
+
+        public static AzureOpenAIGPT4_8K GetDefaultInstance(SearchSession session)
+        {
+            return new AzureOpenAIGPT4_8K(session, null);
+        }
+
+        public AzureOpenAIGPT4_8K(SearchSession session, ModelParameters modelParams) : base(session, modelParams)
         {
             //override model default values here
         }
 
-        public override ModelName name => ModelName.GPT4_8K;
+        public override ModelName name => ModelName.AzureOpenAI_GPT4_8K;
 
-        public override string displayName => "Azure OpenAI - GPT4 - 8K";
+        public override string displayName => "Azure OpenAI - GPT4 - 8K Tokens";
 
         public override int size => 8_192;
+
+        public override bool eventStream => true;
 
         public override string envVarAPIUrl => "%%azure-openai-api-url%%";
 
@@ -175,20 +290,46 @@ namespace Sinequa.Plugin
         public override string envVarDeploymentName => "%%azure-openai-gpt4-8k-deployment-name%%";
 
         public override string envVarPromptProtection => "%%azure-openai-gpt4-8k-prompt-protection%%";
+
+        private static TikToken tikToken_GPT4
+        {
+            get
+            {
+                //https://github.com/aiqinxuancai/TiktokenSharp
+                //path to cl100k_base.tiktoken file
+                //default is <sinequa>/<bin|website/bin>/bpe/cl100k_base.tiktoken
+                //TikToken.PBEFileDirectory = "";
+                return TikToken.EncodingForModel("cl100k_base");
+            }
+        }
+
+        public override int Tokenizer(string str, out int HTTPCode, out string errorMessage)
+        {
+            HTTPCode = 200;
+            errorMessage = "";
+            return tikToken_GPT4.Encode(str).Count;
+        }
     }
 
     public class AzureOpenAIGPT4_32K : AzureOpenAIModel
     {
-        public AzureOpenAIGPT4_32K(ModelParameters modelParams, CCPrincipal user) : base(modelParams, user)
+        public static AzureOpenAIGPT4_32K GetDefaultInstance(SearchSession session)
+        {
+            return new AzureOpenAIGPT4_32K(session, null);
+        }
+
+        public AzureOpenAIGPT4_32K(SearchSession session, ModelParameters modelParams) : base(session, modelParams)
         {
             //override model default values here
         }
 
-        public override ModelName name => ModelName.GPT4_32K;
+        public override ModelName name => ModelName.AzureOpenAI_GPT4_32K;
 
-        public override string displayName => "Azure OpenAI - GPT4 - 32K";
+        public override string displayName => "Azure OpenAI - GPT4 - 32K Tokens";
 
         public override int size => 32_768;
+
+        public override bool eventStream => true;
 
         public override string envVarAPIUrl => "%%azure-openai-api-url%%";
 
@@ -197,7 +338,25 @@ namespace Sinequa.Plugin
         public override string envVarDeploymentName => "%%azure-openai-gpt4-32k-deployment-name%%";
 
         public override string envVarPromptProtection => "%%azure-openai-gpt4-32k-prompt-protection%%";
-    }
 
+        private static TikToken tikToken_GPT4
+        {
+            get
+            {
+                //https://github.com/aiqinxuancai/TiktokenSharp
+                //path to cl100k_base.tiktoken file
+                //default is <sinequa>/<bin|website/bin>/bpe/cl100k_base.tiktoken
+                //TikToken.PBEFileDirectory = "";
+                return TikToken.EncodingForModel("cl100k_base");
+            }
+        }
+
+        public override int Tokenizer(string str, out int HTTPCode, out string errorMessage)
+        {
+            HTTPCode = 200;
+            errorMessage = "";
+            return tikToken_GPT4.Encode(str).Count;
+        }
+    }
 
 }

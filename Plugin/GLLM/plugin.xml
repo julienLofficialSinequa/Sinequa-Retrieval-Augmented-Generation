@@ -2,7 +2,7 @@
 <Sinequa>
 	<Revision>2</Revision>
 	<Description></Description>
-	<ProgrammingLanguage>csnetlatest</ProgrammingLanguage>
+	<ProgrammingLanguage>csany</ProgrammingLanguage>
 	<Platform>any</Platform>
 	<Files>
 		<e>
@@ -11,10 +11,6 @@
 		</e>
 		<e>
 			<Name>GLLMParameters.cs</Name>
-			<Comment></Comment>
-		</e>
-		<e>
-			<Name>GLLMTokenizer.cs</Name>
 			<Comment></Comment>
 		</e>
 		<e>
@@ -27,6 +23,26 @@
 		</e>
 		<e>
 			<Name>AzureOpenAIModels.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>GoogleModels.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>GLLMSearch.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>CohereModels.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>GLLMContext.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>GLLMHelper.cs</Name>
 			<Comment></Comment>
 		</e>
 	</Files>

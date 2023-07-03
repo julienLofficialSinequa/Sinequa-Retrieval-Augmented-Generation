@@ -1,9 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using Newtonsoft.Json.Converters;
+﻿using Azure.AI.OpenAI;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Sinequa.Common;
+using System;
+using System.Collections.Generic;
 using System.Runtime.Serialization;
-using Azure.AI.OpenAI;
 
 namespace Sinequa.Plugin
 {
@@ -18,7 +19,13 @@ namespace Sinequa.Plugin
             [EnumMember(Value = "Chat")]
             Chat,
             [EnumMember(Value = "TokenCount")]
-            TokenCount
+            TokenCount,
+            [EnumMember(Value = "Quota")]
+            Quota,
+            [EnumMember(Value = "Context")]
+            Context,
+            [EnumMember(Value = "Answer")]
+            Answer
         }
 
         [JsonProperty(Required = Required.Always)]
@@ -34,11 +41,14 @@ namespace Sinequa.Plugin
         [JsonProperty(Required = Required.Always)]
         public List<SBAChatMessage> messagesHistory { get; set; }
 
-        [JsonProperty]
+        [JsonProperty(Required = Required.Always)]
         public ModelParameters model { get; set; } = new ModelParameters();
 
         [JsonProperty]
         public bool promptProtection { get; set; } = true;
+
+        [JsonProperty]
+        public bool stream { get; set; } = false;
     }
 
     public class InputParametersTokensCount : InputParameters
@@ -57,7 +67,7 @@ namespace Sinequa.Plugin
         public ModelName name { get; set; }
 
         ///////////////////////////////////////////////////////////////////////////
-        //OpenAI ChatGPT
+        //OpenAI ChatGPT + Google VertexAI Bison
         public double temperature { get; set; } = 0.7;
         public int generateTokens { get; set; } = 800;
         public double topP { get; set; } = 0.8;
@@ -71,6 +81,13 @@ namespace Sinequa.Plugin
         public int bestOf { get; set; } = 1;
         ///////////////////////////////////////////////////////////////////////////
 
+
+        ///////////////////////////////////////////////////////////////////////////
+        //Google VertexAI Bison
+        public int topK { get; set; } = 40;
+        public string context { get; set; } = "";
+        public List<VertexAIBisonQueryInstanceExamples> examples = new List<VertexAIBisonQueryInstanceExamples>();
+        ///////////////////////////////////////////////////////////////////////////
     }
 
     public class ChatAttachment
@@ -119,5 +136,91 @@ namespace Sinequa.Plugin
         {
             return new ChatMessage(role, content);
         }
+    }
+
+    public class InputParametersAppQuery : InputParameters
+    {
+        [JsonProperty(Required = Required.Always)]
+        public string app { get; set; } = String.Empty;
+
+        [JsonProperty(Required = Required.Always)]
+        public InputParametersSearchQuery query { get; set; } = null;
+    }
+
+    public class InputParametersContext : InputParametersAppQuery
+    {
+        [JsonProperty(Required = Required.Always)]
+        public InputParametersContextOptions contextOptions { get; set; } = new InputParametersContextOptions();
+    }
+
+    public class InputParametersAnswer : InputParametersAppQuery
+    {
+        [JsonProperty(Required = Required.Always)]
+        public ModelParameters model { get; set; } = new ModelParameters();
+
+        [JsonProperty(Required = Required.Always)]
+        public InputPrompt prompt { get; set; } = null;
+
+        [JsonProperty(Required = Required.Always)]
+        public InputParametersContextOptions contextOptions { get; set; } = new InputParametersContextOptions();
+    }
+
+    public class InputPrompt
+    {
+        [JsonProperty(Required = Required.Always)]
+        public string systemPrompt { get; set; } = Str.Empty;
+
+        public string userBeforeContext { get; set; } = Str.Empty;
+
+        public string userAfterContext { get; set; } = Str.Empty;
+    }
+
+    public class InputParametersSearchQuery
+    {
+        [JsonProperty(Required = Required.Always)]
+        public string name { get; set; } = String.Empty;
+    }
+
+    public class InputParametersContextOptions
+    {
+        public enum ExtendPassage
+        {
+            [EnumMember(Value = "None")]
+            None,
+            [EnumMember(Value = "Sentence")]
+            Sentence,
+            [EnumMember(Value = "Passage")]
+            Passage
+        }
+
+        public enum ContextStrategy
+        {
+            [EnumMember(Value = "TopPassagesByScore")]
+            TopPassagesByScore,
+            /*
+            [EnumMember(Value = "TopDocumentsByPassagesScore")]
+            TopDocumentsByPassagesScore,
+            */
+        }
+
+        [JsonProperty(Required = Required.Always)]
+        public ContextStrategy strategy { get; set; }
+
+        public int topPassages { get; set; } = 5;
+
+        public double topPassagesMinScore { get; set; } = 0.5;
+
+        public ExtendPassage extendPassageMode { get; set; } = ExtendPassage.None;
+
+        public int extendSentences = 0;
+
+        public List<string> docColumns { get; set; } = new List<string>();
+
+        //TODO
+
+        //public int fillGaps = 500;
+
+        //max tokens
+
     }
 }

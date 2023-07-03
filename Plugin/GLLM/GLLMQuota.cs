@@ -30,7 +30,6 @@ namespace Sinequa.Plugin
 		public int resetHours;
         [JsonIgnore]
         public US userSettings;
-        [JsonIgnore]
         public bool enabled = false;
 
         [JsonIgnore]
