@@ -24,7 +24,7 @@ Sample of integration with Azure OpenAI GPT model:
 
 June 30th 2023:
 - New [providers and models](#providers_and_models): *Google PaLM2 Chat* & *Cohere Command*
-- Support of *streaming* for Azure OpenAI GPT models. See [Chat](#endpoint_chat)
+- Support of *streaming* for Azure OpenAI GPT models (Kestrel WebAPp only). See [Chat](#endpoint_chat)
 - New actions: [Answer](#endpoint_answer), [Context](#endpoint_context) and [Quota](#endpoint_quota)
 
 <br/><br/>
@@ -547,7 +547,7 @@ Name | Type | Mandatory | Default value | Comment |
 --- | --- | :----: | --- | --- |
 `messagesHistory` | object | X | | see [messagesHistory](#param_msghistory) object
 `model` | object | | | see [model](#param_model) object
-`stream` | boolean | | | enable streaming mode
+`stream` | boolean | | | enable streaming mode. Streaming mode is only supported on Kestrel WebApp.
 `promptProtection` | bool || true | refer to environment variables `<provider>-<model>-prompt-protection` 
 
 <a name="param_msghistory"></a> **messagesHistory** parameters:
