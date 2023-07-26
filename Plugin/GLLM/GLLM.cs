@@ -89,6 +89,9 @@ namespace Sinequa.Plugin
                 case ModelName.AzureOpenAI_GPT35Turbo:
                     model = new AzureOpenAIGPT35Turbo(this.Method.Session, inputParamsChat.model);
                     break;
+                case ModelName.AzureOpenAI_GPT35Turbo_16K:
+                    model = new AzureOpenAIGPT35Turbo_16K(this.Method.Session, inputParamsChat.model);
+                    break;
                 case ModelName.AzureOpenAI_GPT4_8K:
                     model = new AzureOpenAIGPT4_8K(this.Method.Session, inputParamsChat.model);
                     break;
@@ -167,6 +170,9 @@ namespace Sinequa.Plugin
                 case ModelName.AzureOpenAI_GPT35Turbo:
                     model = AzureOpenAIGPT35Turbo.GetDefaultInstance(this.Method.Session);
                     break;
+                case ModelName.AzureOpenAI_GPT35Turbo_16K:
+                    model = AzureOpenAIGPT35Turbo_16K.GetDefaultInstance(this.Method.Session);
+                    break;
                 case ModelName.AzureOpenAI_GPT4_8K:
                     model = AzureOpenAIGPT4_8K.GetDefaultInstance(this.Method.Session);
                     break;
@@ -236,6 +242,9 @@ namespace Sinequa.Plugin
             List<GLLMModel> lModels = new List<GLLMModel>();
 
             model = AzureOpenAIGPT35Turbo.GetDefaultInstance(this.Method.Session);
+            if (model.LoadEnvVars(out errorMessage)) lModels.Add(model);
+
+            model = AzureOpenAIGPT35Turbo_16K.GetDefaultInstance(this.Method.Session);
             if (model.LoadEnvVars(out errorMessage)) lModels.Add(model);
 
             model = AzureOpenAIGPT4_8K.GetDefaultInstance(this.Method.Session);

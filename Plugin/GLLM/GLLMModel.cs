@@ -183,6 +183,7 @@ namespace Sinequa.Plugin
                 switch (_model.name)
                 {
                     case ModelName.AzureOpenAI_GPT35Turbo:
+                    case ModelName.AzureOpenAI_GPT35Turbo_16K:
                     case ModelName.AzureOpenAI_GPT4_8K:
                     case ModelName.AzureOpenAI_GPT4_32K:
                         return (_response as ChatCompletions).Usage.TotalTokens;
@@ -207,6 +208,7 @@ namespace Sinequa.Plugin
             switch (_model.name)
             {
                 case ModelName.AzureOpenAI_GPT35Turbo:
+                case ModelName.AzureOpenAI_GPT35Turbo_16K:
                 case ModelName.AzureOpenAI_GPT4_8K:
                 case ModelName.AzureOpenAI_GPT4_32K:
                     ChatChoice choice = (_response as ChatCompletions).Choices.First();
