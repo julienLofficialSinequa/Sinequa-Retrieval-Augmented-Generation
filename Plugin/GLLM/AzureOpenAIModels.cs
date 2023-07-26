@@ -359,4 +359,52 @@ namespace Sinequa.Plugin
         }
     }
 
+    public class AzureOpenAIGPT35Turbo_16K : AzureOpenAIModel
+    {
+        public static AzureOpenAIGPT35Turbo_16K GetDefaultInstance(SearchSession session)
+        {
+            return new AzureOpenAIGPT35Turbo_16K(session, null);
+        }
+
+        public AzureOpenAIGPT35Turbo_16K(SearchSession session, ModelParameters modelParams) : base(session, modelParams)
+        {
+            //override model default values here
+        }
+
+        public override ModelName name => ModelName.AzureOpenAI_GPT35Turbo_16K;
+
+        public override string displayName => "Azure OpenAI - GPT3.5 - 16K Tokens";
+
+        public override int size => 16_384;
+
+        public override bool eventStream => true;
+
+        public override string envVarAPIUrl => "%%azure-openai-api-url%%";
+
+        public override string envVarAPIKey => "%%azure-openai-api-key%%";
+
+        public override string envVarDeploymentName => "%%azure-openai-gpt-35-16k-deployment-name%%";
+
+        public override string envVarPromptProtection => "%%azure-openai-gpt-35-16k-prompt-protection%%";
+
+        private static TikToken tikToken_GPT35
+        {
+            get
+            {
+                //https://github.com/aiqinxuancai/TiktokenSharp
+                //path to p50k_base.tiktoken file
+                //default is <sinequa>/<bin|website/bin>/bpe/p50k_base.tiktoken
+                //TikToken.PBEFileDirectory = "";
+                return TikToken.EncodingForModel("p50k_base");
+            }
+        }
+
+        public override int Tokenizer(string str, out int HTTPCode, out string errorMessage)
+        {
+            HTTPCode = 200;
+            errorMessage = "";
+            return tikToken_GPT35.Encode(str).Count;
+        }
+    }
+
 }

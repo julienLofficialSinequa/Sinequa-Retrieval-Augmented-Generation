@@ -34,13 +34,15 @@ namespace Sinequa.Plugin
     {
         [EnumMember(Value = "GPT35Turbo")]
         AzureOpenAI_GPT35Turbo,
+        [EnumMember(Value = "GPT35Turbo-16K")]
+        AzureOpenAI_GPT35Turbo_16K,
         [EnumMember(Value = "GPT4-8K")]
         AzureOpenAI_GPT4_8K,
         [EnumMember(Value = "GPT4-32K")]
         AzureOpenAI_GPT4_32K,
         [EnumMember(Value = "Chat-Bison-001")]
         GoogleVertex_Chat_Bison_001,
-        [EnumMember(Value = "command-xlarge-beta")]
+        [EnumMember(Value = "command-nightly")]
         Cohere_Command_XL_Beta
     }
 

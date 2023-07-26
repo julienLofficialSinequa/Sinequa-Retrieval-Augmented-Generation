@@ -353,30 +353,36 @@ namespace Sinequa.Plugin
             if (String.IsNullOrEmpty(appName))
             {
                 this.SetError(500, $"app is null or empty");
+                return false;
             }
             this.app = CC.Current.AllApps.GetApp(inputAppQuery.app);
             if (app == null)
             {
                 this.SetError(500, $"Cannot find app [{inputAppQuery.app}]");
+                return false;
             }
+                       
 
             if (!this.Method.Session.CheckAppACL(CC.Current, app))
             {
                 this.SetError(500, $"Cannot access app [{inputAppQuery.app}]");
+                return false;
             }
 
             string queryName = inputAppQuery.query.name;
             if (String.IsNullOrEmpty(queryName))
             {
                 this.SetError(500, $"query is null or empty");
+                return false;
             }
             this.ccQuery = CC.Current.WebServices.Get(queryName).AsQuery();
             if (ccQuery == null)
             {
                 this.SetError(500, $"Cannot find query [{queryName}] [{JsonConvert.SerializeObject(inputAppQuery)}]");
+                return false;
             }
 
-            return !this.HasError();
+            return true;
         }
     }
 }
