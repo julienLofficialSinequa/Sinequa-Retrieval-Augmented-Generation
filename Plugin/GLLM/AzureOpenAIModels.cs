@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Text;
 using TiktokenSharp;
 using System.Web;
+using System.Collections.Generic;
 #if NETCOREAPP
 using Microsoft.AspNetCore.Http;
 #endif
@@ -129,7 +130,6 @@ namespace Sinequa.Plugin
 
         public override void StreamQueryAPI(JsonMethod method, GLLMQuota quota)
         {
-#if NETCOREAPP
             HttpResponse res = method.Hm.GetContext().Response;
 
             var q = method.Hm.GetContext().Request;
@@ -144,6 +144,7 @@ namespace Sinequa.Plugin
             res.StatusCode = response.GetRawResponse().Status;
             if (response.GetRawResponse().IsError) return;
 
+#if NETCOREAPP
             //Set HTTP response to event-stream
             res.Headers.Append("Content-Type", "text/event-stream");
             res.Headers.Append("Cache-Control", "no-store");
@@ -186,11 +187,87 @@ namespace Sinequa.Plugin
                 quota.Update(tokenCount);
             }
 
+#else
+
+            //Set HTTP response to event-stream
+            res.AddHeader("Content-Type", "text/event-stream");
+            res.AddHeader("Cache-Control", "no-store");
+            res.AddHeader("Access-Control-Allow-Origin", "*");
+            res.AddHeader("Access-Control-Allow-Credentials", "true");
+            res.ClearContent();
+
+            Task _task = getAndDisplayChatAsync(res, method, quota, response);
+            _task.Wait();
+
+#endif
             //close stream
             method.Hm.SetResponseEndCalled(true);
-#else
-            throw new Exception("Streaming only supported with Kestrel WebApp");
-#endif
+        }
+
+        private async Task getAndDisplayChatAsync(HttpResponse res, JsonMethod method, GLLMQuota quota, Response<StreamingChatCompletions> response)
+        {
+            //token & quota stats
+            int tokenCount = CountMessagesTokens();
+
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+
+            using (StreamingChatCompletions streamingChatCompletions = response.Value)
+            {
+                IAsyncEnumerable<StreamingChatChoice> choices = streamingChatCompletions.GetChoicesStreaming();
+                IAsyncEnumerator<StreamingChatChoice> choicesEnumerator = choices.GetAsyncEnumerator();
+                try
+                {
+                    while (await choicesEnumerator.MoveNextAsync())
+                    {
+                        var choice = choicesEnumerator.Current;
+
+                        StringBuilder sb = new StringBuilder();
+
+                        IAsyncEnumerable<ChatMessage> messages = choice.GetMessageStreaming();
+                        IAsyncEnumerator<ChatMessage> messagesEnumerator = messages.GetAsyncEnumerator();
+
+                        try
+                        {
+                            while (await messagesEnumerator.MoveNextAsync())
+                            {
+                                var message = messagesEnumerator.Current;
+
+                                tokenCount += CountTokens(message.Content);
+                                sb.Append(message.Content);
+
+                                if (stopwatch.ElapsedMilliseconds >= 500)
+                                {
+                                    FlushMessage(res, EventMessage(sb.ToString(), tokenCount, false));
+
+                                    sb.Clear();
+                                    stopwatch.Restart();
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            await messagesEnumerator.DisposeAsync();
+                        }
+
+                        FlushMessage(res, EventMessage(sb.ToString(), tokenCount, true));
+                    }
+                }
+                finally
+                {
+                    await choicesEnumerator.DisposeAsync();
+                }
+
+            }
+
+            //update quota
+            //no quota for admins
+            if (quota.enabled && method.Session.IsAdmin)
+            {
+                quota.Update(tokenCount);
+            }
+
         }
 
         private ChatCompletionsOptions PostBody(CCPrincipal user)

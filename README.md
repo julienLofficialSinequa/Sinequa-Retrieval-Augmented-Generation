@@ -38,6 +38,7 @@ June 30th 2023:
         * [Cohere - Command Chat](#installation_steps_plugin_env_vars_cohere)
         * [User quota](#installation_steps_plugin_env_vars_quota)
     * [SBA](#installation_steps_sba)
+    * [IIS specifics](#installation_steps_iis)
 * [ChatGPT SBA integration](#sba_integration)
     * [Chat component](#sba_integration_chat_component)
         * [General options](#sba_integration_chat_options)
@@ -195,6 +196,23 @@ Name | Type | Comment |
 New SBA components are available on the [SBA GitHub - Chatgpt-integration branch](https://github.com/sinequa/sba-angular/tree/chatgpt-integration).
 
 To learn more, read the [ChatGPT SBA integration](#sba_integration) section of the documentation below.
+
+
+<br/>
+
+
+## <a name="installation_steps_iis"></a> IIS Specifics
+
+While the plugin works natively with a IIS installation, you need to configure an additional parameter if you want to use the streaming mode.
+
+1. Open Internet Information Services (IIS)
+2. Click on the Sinequa website and open the "Configuration Editor" option
+3. A table containing several lines appear. On of the is named "dynamicTypes". Open it by clicking on the ... on right side
+4. At the end of the newly opened table, add a new one with the following configuration:
+    - mimeType: text/event-stream
+    - enabled: False
+    - Click on add to validate it
+5. When going back to the first table, click on Apply to validate the modification
 
 
 <br/>
